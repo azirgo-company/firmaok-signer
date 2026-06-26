@@ -161,6 +161,12 @@ function ImportCert({
               title="Contraseña maestra"
               subtitle="Usa una frase larga; mínimo 10 caracteres"
             />
+            {method === 'webauthn-prf' && (
+              <p className="px-1 text-xs text-slate-400">
+                Si en escritorio aparece tu gestor (Dashlane, 1Password…), cancélalo para usar Touch
+                ID / Windows Hello. Si no soporta biometría, cambiaremos a contraseña maestra.
+              </p>
+            )}
           </div>
 
           {method === 'pin' && (

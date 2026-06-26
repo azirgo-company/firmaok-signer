@@ -125,25 +125,27 @@ export interface PrfCredential {
 export async function createPrfCredential(): Promise<PrfCredential> {
   const userId = crypto.getRandomValues(new Uint8Array(16))
   const challenge = crypto.getRandomValues(new Uint8Array(32))
-  const cred = (await navigator.credentials.create({
-    publicKey: {
-      rp: { name: 'FirmaOK Signer' },
-      user: { id: toArrayBuffer(userId), name: 'firmaok-vault', displayName: 'FirmaOK Vault' },
-      challenge: toArrayBuffer(challenge),
-      pubKeyCredParams: [
-        { type: 'public-key', alg: -7 }, // ES256
-        { type: 'public-key', alg: -257 }, // RS256
-      ],
-      // 'platform' enruta al autenticador integrado (Touch ID / Google Password Manager /
-      // Windows Hello), que sí soporta PRF, y evita gestores externos como Dashlane.
-      authenticatorSelection: {
-        authenticatorAttachment: 'platform',
-        residentKey: 'required',
-        userVerification: 'required',
-      },
-      extensions: { prf: {} },
+  const publicKey: PublicKeyCredentialCreationOptions = {
+    rp: { name: 'FirmaOK Signer' },
+    user: { id: toArrayBuffer(userId), name: 'firmaok-vault', displayName: 'FirmaOK Vault' },
+    challenge: toArrayBuffer(challenge),
+    pubKeyCredParams: [
+      { type: 'public-key', alg: -7 }, // ES256
+      { type: 'public-key', alg: -257 }, // RS256
+    ],
+    // 'platform' + residentKey 'discouraged' enruta al autenticador integrado
+    // (Touch ID / Windows Hello) como credencial NO descubrible, reduciendo que
+    // un gestor externo (Dashlane/1Password) intercepte la ceremonia.
+    authenticatorSelection: {
+      authenticatorAttachment: 'platform',
+      residentKey: 'discouraged',
+      userVerification: 'required',
     },
-  })) as PublicKeyCredential | null
+    extensions: { prf: {} },
+  }
+  // `hints: client-device` (WebAuthn L3): pista para preferir el dispositivo local.
+  ;(publicKey as unknown as { hints?: string[] }).hints = ['client-device']
+  const cred = (await navigator.credentials.create({ publicKey })) as PublicKeyCredential | null
 
   if (!cred) throw new Error('No se pudo crear la passkey.')
   const ext = cred.getClientExtensionResults() as { prf?: { enabled?: boolean } }
@@ -165,14 +167,14 @@ export async function derivePrfKey(
 ): Promise<CryptoKey> {
   const prfInput = await sha256(concat(APP_PRF_LABEL, vaultSalt))
   const challenge = crypto.getRandomValues(new Uint8Array(32))
-  const assertion = (await navigator.credentials.get({
-    publicKey: {
-      challenge: toArrayBuffer(challenge),
-      allowCredentials: [{ type: 'public-key', id: toArrayBuffer(credentialId) }],
-      userVerification: 'required',
-      extensions: { prf: { eval: { first: toArrayBuffer(prfInput) } } },
-    },
-  })) as PublicKeyCredential | null
+  const publicKey: PublicKeyCredentialRequestOptions = {
+    challenge: toArrayBuffer(challenge),
+    allowCredentials: [{ type: 'public-key', id: toArrayBuffer(credentialId) }],
+    userVerification: 'required',
+    extensions: { prf: { eval: { first: toArrayBuffer(prfInput) } } },
+  }
+  ;(publicKey as unknown as { hints?: string[] }).hints = ['client-device']
+  const assertion = (await navigator.credentials.get({ publicKey })) as PublicKeyCredential | null
 
   const results = (
     assertion?.getClientExtensionResults() as { prf?: { results?: { first?: ArrayBuffer } } }
