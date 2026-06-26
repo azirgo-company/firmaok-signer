@@ -15,7 +15,11 @@ import {
 import { Alert, Badge, Button, Card, Field, Input, Spinner } from '../components/ui'
 import { readFileBytes } from '../lib/file'
 import { formatDate } from '../lib/date'
-import { isWebAuthnPrfSupported, type ProtectionMethod } from '../modules/cert-vault/key-protection'
+import {
+  isWebAuthnPrfSupported,
+  PrfUnsupportedError,
+  type ProtectionMethod,
+} from '../modules/cert-vault/key-protection'
 import type { CertSummary } from '../modules/cert-vault/vault'
 import type { useVault } from '../modules/cert-vault/useVault'
 
@@ -76,7 +80,16 @@ function ImportCert({
       })
       onDone()
     } catch (e) {
-      setError((e as Error).message)
+      if (e instanceof PrfUnsupportedError || (e as Error)?.name === 'PrfUnsupportedError') {
+        // Biometría no disponible (gestor externo como Dashlane, o Touch ID local sin PRF):
+        // cambiamos a contraseña maestra automáticamente.
+        setMethod('pin')
+        setError(
+          'No se pudo usar biometría: parece que un gestor externo (p. ej. Dashlane) interceptó, o tu Touch ID local no soporta el cifrado PRF. Crea una contraseña maestra para continuar.',
+        )
+      } else {
+        setError((e as Error).message)
+      }
     } finally {
       setBusy(false)
     }

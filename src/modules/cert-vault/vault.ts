@@ -136,17 +136,6 @@ export async function listCertificates(): Promise<CertSummary[]> {
   return out.sort((a, b) => a.label.localeCompare(b.label))
 }
 
-// ---------- Passkey PRF compartida (una para todos los certs biométricos) ----------
-
-async function getOrCreateSharedPrfCredential(): Promise<Uint8Array> {
-  const dbi = await db()
-  const existing = (await dbi.get(META_STORE, SHARED_PRF_KEY)) as { credentialId: string } | undefined
-  if (existing?.credentialId) return base64ToBytes(existing.credentialId)
-  const cred = await createPrfCredential()
-  await dbi.put(META_STORE, { credentialId: bytesToBase64(cred.credentialId) }, SHARED_PRF_KEY)
-  return cred.credentialId
-}
-
 // ---------- Importar ----------
 
 export interface ImportResult {
@@ -174,9 +163,23 @@ export async function importP12(p12Bytes: Uint8Array, opts: ImportOptions): Prom
     if (!isWebAuthnPrfSupported()) {
       throw new Error('Este navegador no soporta biometría (WebAuthn). Usa una contraseña maestra.')
     }
-    const cred = await getOrCreateSharedPrfCredential()
-    credentialId = bytesToBase64(cred)
-    protectionKey = await derivePrfKey(cred, vaultSalt)
+    // Reutiliza una passkey PRF compartida; la guarda SOLO tras un derive exitoso
+    // (si PRF falla por un gestor externo, no deja un registro inservible).
+    const existing = (await dbi.get(META_STORE, SHARED_PRF_KEY)) as
+      | { credentialId: string }
+      | undefined
+    let credBytes: Uint8Array
+    let isNew = false
+    if (existing?.credentialId) {
+      credBytes = base64ToBytes(existing.credentialId)
+    } else {
+      const created = await createPrfCredential()
+      credBytes = created.credentialId
+      isNew = true
+    }
+    protectionKey = await derivePrfKey(credBytes, vaultSalt) // valida PRF con un get real
+    credentialId = bytesToBase64(credBytes)
+    if (isNew) await dbi.put(META_STORE, { credentialId }, SHARED_PRF_KEY)
     kdf = 'argon2id' // no aplica al PRF; marcamos formato nuevo
   } else {
     if (!opts.pin || opts.pin.length < 10) {

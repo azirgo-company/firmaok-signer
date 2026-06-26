@@ -95,6 +95,16 @@ export async function derivePinKeyPbkdf2(password: string, salt: Uint8Array): Pr
 
 // ---------- Biometría / passkey (WebAuthn PRF) ----------
 
+/** El dispositivo/navegador no soporta la extensión PRF para cifrar con biometría. */
+export class PrfUnsupportedError extends Error {
+  constructor() {
+    super(
+      'Tu navegador o dispositivo no soporta biometría para cifrar (PRF). Suele pasar en Chrome de escritorio con Touch ID local. Usa una contraseña maestra.',
+    )
+    this.name = 'PrfUnsupportedError'
+  }
+}
+
 export function isWebAuthnPrfSupported(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -108,8 +118,9 @@ export interface PrfCredential {
 }
 
 /**
- * Crea una passkey ligada al dispositivo con la extensión PRF habilitada.
- * Requiere verificación del usuario (biometría / PIN del SO).
+ * Crea una passkey con la extensión PRF. Solo falla de inmediato si el navegador
+ * indica EXPLÍCITAMENTE que PRF no está disponible (`enabled === false`); si es
+ * ambiguo (undefined), continuamos y la validación real ocurre en `derivePrfKey`.
  */
 export async function createPrfCredential(): Promise<PrfCredential> {
   const userId = crypto.getRandomValues(new Uint8Array(16))
@@ -123,15 +134,23 @@ export async function createPrfCredential(): Promise<PrfCredential> {
         { type: 'public-key', alg: -7 }, // ES256
         { type: 'public-key', alg: -257 }, // RS256
       ],
-      authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+      // 'platform' enruta al autenticador integrado (Touch ID / Google Password Manager /
+      // Windows Hello), que sí soporta PRF, y evita gestores externos como Dashlane.
+      authenticatorSelection: {
+        authenticatorAttachment: 'platform',
+        residentKey: 'required',
+        userVerification: 'required',
+      },
       extensions: { prf: {} },
     },
   })) as PublicKeyCredential | null
 
   if (!cred) throw new Error('No se pudo crear la passkey.')
   const ext = cred.getClientExtensionResults() as { prf?: { enabled?: boolean } }
-  if (!ext.prf?.enabled) {
-    throw new Error('Este dispositivo/navegador no soporta PRF para cifrar con biometría.')
+  // Solo descartamos si el navegador lo niega explícitamente. Si es undefined,
+  // dejamos que `derivePrfKey` (un get real) sea la prueba definitiva.
+  if (ext.prf?.enabled === false) {
+    throw new PrfUnsupportedError()
   }
   return { credentialId: new Uint8Array(cred.rawId) }
 }
@@ -158,7 +177,7 @@ export async function derivePrfKey(
   const results = (
     assertion?.getClientExtensionResults() as { prf?: { results?: { first?: ArrayBuffer } } }
   )?.prf?.results?.first
-  if (!results) throw new Error('No se obtuvo el secreto biométrico (PRF).')
+  if (!results) throw new PrfUnsupportedError()
 
   // El secreto PRF se usa como material para HKDF -> clave AES-GCM.
   const ikm = await crypto.subtle.importKey('raw', results, 'HKDF', false, ['deriveKey'])
