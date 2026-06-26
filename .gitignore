@@ -1,0 +1,51 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies & build output
+node_modules
+dist
+dist-ssr
+dev-dist
+coverage
+*.local
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Secretos / material criptográfico — NUNCA subir
+*.p12
+*.pfx
+*.key
+*.pem
+*.cer
+*.crt
+
+# PDFs firmados / de prueba (evita filtrar datos personales)
+*-firmado.pdf
+*-signed.pdf
+
+# Archivos temporales de trabajo
+scratch-*
+*.tmp
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Claude Code (local)
+.claude

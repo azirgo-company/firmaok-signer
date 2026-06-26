@@ -1,0 +1,39 @@
+# Config de nginx para la PWA FirmaOK. ${PORT} lo sustituye el entrypoint de nginx
+# con el valor que inyecta Railway en tiempo de ejecución.
+server {
+    listen ${PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Compresión para los bundles (JS/CSS grandes de cripto/PDF).
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml application/wasm application/manifest+json;
+    gzip_min_length 1024;
+
+    # El service worker y el index NO se cachean: así las actualizaciones se propagan.
+    location = /sw.js {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+    }
+    location = /registerSW.js {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+    }
+    location = /manifest.webmanifest {
+        add_header Cache-Control "no-cache";
+    }
+    location = /index.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+    }
+
+    # Assets con hash en el nombre (incl. el worker .mjs de pdf.js y wasm): cache inmutable.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    # Fallback SPA: cualquier ruta cae en index.html (la app es 100% cliente).
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
