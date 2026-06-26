@@ -38,10 +38,10 @@ export function extractSignatures(pdfBytes: Uint8Array): ExtractedSignature[] {
     const open = gap.indexOf('<')
     const close = gap.lastIndexOf('>')
     if (open === -1 || close === -1 || close <= open) continue
-    const hex = gap
-      .slice(open + 1, close)
-      .replace(/[^0-9a-fA-F]/g, '')
-      .replace(/(?:00)+$/i, '') // quitamos el relleno de ceros
+    // No recortamos los ceros finales del relleno: el parser ASN.1 ignora lo que sobra
+    // tras la estructura, y recortarlos rompería tokens con BER de longitud indefinida
+    // (que terminan en 00 00, p.ej. los DocTimeStamp de Security Data).
+    const hex = gap.slice(open + 1, close).replace(/[^0-9a-fA-F]/g, '')
 
     const cmsDer = hexToBytes(hex)
     if (cmsDer.length === 0) continue

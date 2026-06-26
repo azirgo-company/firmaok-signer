@@ -7,6 +7,7 @@ import {
   RotateCcw,
   AlertTriangle,
   FileText,
+  Clock,
 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Skeleton } from '../components/ui'
 import { readFileBytes } from '../lib/file'
@@ -82,9 +83,7 @@ export function ValidatePage() {
 
             {!busy && reports && reports.length > 0 && (
               <>
-                <p className="text-sm text-slate-500">
-                  {reports.length} {reports.length === 1 ? 'firma encontrada' : 'firmas encontradas'}
-                </p>
+                <p className="text-sm text-slate-500">{summarize(reports)}</p>
                 {reports.map((r) => (
                   <SignatureCard key={r.index} r={r} />
                 ))}
@@ -157,48 +156,90 @@ function LoadingSkeletons() {
 function SignatureCard({ r }: { r: SignatureReport }) {
   const [open, setOpen] = useState(false)
   const ok = r.integrityValid
+  const isTimestamp = r.kind === 'timestamp'
+
+  // Cabecera neutra (azul) para sellos de tiempo; verde/rojo para firmas de persona.
+  const headerBg = isTimestamp
+    ? 'bg-sky-50/70 dark:bg-sky-950/20'
+    : ok
+      ? 'bg-emerald-50/60 dark:bg-emerald-950/20'
+      : 'bg-rose-50/60 dark:bg-rose-950/20'
+
   return (
     <Card padded={false} className="overflow-hidden">
-      <div
-        className={`flex items-start gap-3 p-5 ${
-          ok ? 'bg-emerald-50/60 dark:bg-emerald-950/20' : 'bg-rose-50/60 dark:bg-rose-950/20'
-        }`}
-      >
-        {ok ? (
+      <div className={`flex items-start gap-3 p-5 ${headerBg}`}>
+        {isTimestamp ? (
+          <Clock className="mt-0.5 h-6 w-6 shrink-0 text-sky-600" strokeWidth={2} />
+        ) : ok ? (
           <BadgeCheck className="mt-0.5 h-6 w-6 shrink-0 text-emerald-600" strokeWidth={2} />
         ) : (
           <ShieldX className="mt-0.5 h-6 w-6 shrink-0 text-rose-600" strokeWidth={2} />
         )}
         <div className="min-w-0">
-          <p
-            className={`font-semibold tracking-tight ${
-              ok ? 'text-emerald-800 dark:text-emerald-200' : 'text-rose-800 dark:text-rose-200'
-            }`}
-          >
-            {ok ? 'Firma válida' : 'Firma inválida'}
-          </p>
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            {ok
-              ? 'La firma es auténtica y el documento no fue modificado.'
-              : 'No se pudo verificar la integridad de esta firma.'}
-          </p>
-          <div className="mt-2 text-sm">
-            <p className="text-xs text-slate-500">Firmante</p>
-            <p className="font-medium leading-snug break-words">{r.signerName}</p>
-            {r.identification && (
-              <p className="mt-0.5 text-xs text-slate-500">
-                Cédula / RUC:{' '}
-                <span className="font-mono text-slate-700 dark:text-slate-300">
-                  {r.identification}
-                </span>
+          {isTimestamp ? (
+            <>
+              <p className="font-semibold tracking-tight text-sky-800 dark:text-sky-200">
+                Sello de tiempo del documento
               </p>
-            )}
-          </div>
-          {r.certExpired && (
-            <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-600">
-              <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2} />
-              Certificado vencido a la fecha actual
-            </span>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Garantiza la fecha del documento, emitido por una Autoridad de Sellado (TSA).
+              </p>
+              <div className="mt-2 text-sm">
+                <p className="text-xs text-slate-500">Autoridad (TSA)</p>
+                <p className="font-medium leading-snug break-words">
+                  {r.organization || r.signerName}
+                </p>
+                {r.signingTime && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Fecha del sello:{' '}
+                    <span className="text-slate-700 dark:text-slate-300">
+                      {r.signingTime.toLocaleString()}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <p
+                  className={`font-semibold tracking-tight ${
+                    ok ? 'text-emerald-800 dark:text-emerald-200' : 'text-rose-800 dark:text-rose-200'
+                  }`}
+                >
+                  {ok ? 'Firma válida' : 'Firma inválida'}
+                </p>
+                {r.hasDocTimestamp && (
+                  <Badge tone="brand">
+                    <Clock className="h-3 w-3" strokeWidth={2} />
+                    Con sello de tiempo
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                {ok
+                  ? 'La firma es auténtica y el documento no fue modificado.'
+                  : 'No se pudo verificar la integridad de esta firma.'}
+              </p>
+              <div className="mt-2 text-sm">
+                <p className="text-xs text-slate-500">Firmante</p>
+                <p className="font-medium leading-snug break-words">{r.signerName}</p>
+                {r.identification && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Cédula / RUC:{' '}
+                    <span className="font-mono text-slate-700 dark:text-slate-300">
+                      {r.identification}
+                    </span>
+                  </p>
+                )}
+              </div>
+              {r.certExpired && (
+                <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-600">
+                  <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2} />
+                  Certificado vencido a la fecha actual
+                </span>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -262,6 +303,14 @@ function SignatureCard({ r }: { r: SignatureReport }) {
       </div>
     </Card>
   )
+}
+
+function summarize(reports: SignatureReport[]): string {
+  const sigs = reports.filter((r) => r.kind === 'signature').length
+  const ts = reports.filter((r) => r.kind === 'timestamp').length
+  const parts = [`${sigs} ${sigs === 1 ? 'firma' : 'firmas'}`]
+  if (ts > 0) parts.push(`${ts} sello${ts === 1 ? '' : 's'} de tiempo`)
+  return parts.join(' · ')
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

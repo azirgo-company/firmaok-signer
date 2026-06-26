@@ -14,6 +14,10 @@ const OID_SIGNATURE_TIMESTAMP = '1.2.840.113549.1.9.16.2.14'
 
 export interface SignatureReport {
   index: number
+  /** 'signature' = firma de persona; 'timestamp' = sello de tiempo del documento (DocTimeStamp). */
+  kind: 'signature' | 'timestamp'
+  /** La firma está amparada por un sello de tiempo de archivo del documento. */
+  hasDocTimestamp?: boolean
   signerName: string
   identification?: string
   organization?: string
@@ -56,9 +60,23 @@ export async function validatePdf(pdfBytes: Uint8Array): Promise<SignatureReport
   for (const sig of signatures) {
     const dict = parseSigDict(text, sig.byteRangeIndex)
     const report = await analyzeSignature(sig, dict, pdfBytes.length)
-    if (report) reports.push({ ...report, index: reports.length })
+    if (report) reports.push(report)
   }
-  return reports
+
+  // Si el documento trae un sello de tiempo de archivo (DocTimeStamp), las firmas de
+  // persona quedan amparadas por él: lo reflejamos en su perfil en vez de mostrarlo
+  // como "otra firma".
+  const hasDocTimestamp = reports.some((r) => r.kind === 'timestamp')
+  for (const r of reports) {
+    if (r.kind === 'signature' && hasDocTimestamp) {
+      r.hasDocTimestamp = true
+      if (r.padesProfile.startsWith('B-B')) {
+        r.padesProfile = 'B-LTA (con sello de tiempo de archivo)'
+      }
+    }
+  }
+
+  return reports.map((r, i) => ({ ...r, index: i }))
 }
 
 async function analyzeSignature(
@@ -78,6 +96,7 @@ async function analyzeSignature(
   const signedEnd = extracted.byteRange[2] + extracted.byteRange[3]
   const report: SignatureReport = {
     index: 0,
+    kind: dict.subFilter === 'ETSI.RFC3161' ? 'timestamp' : 'signature',
     signerName: 'Desconocido',
     issuer: 'Desconocido',
     integrityValid: false,
