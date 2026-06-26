@@ -232,6 +232,11 @@ function SignatureCard({ r }: { r: SignatureReport }) {
                     </span>
                   </p>
                 )}
+                {(r.position || r.companyName) && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {[r.position, r.companyName].filter(Boolean).join(' · ')}
+                  </p>
+                )}
               </div>
               {r.certExpired && (
                 <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-600">
@@ -260,9 +265,12 @@ function SignatureCard({ r }: { r: SignatureReport }) {
           <div className="space-y-5 px-5 pb-5 text-sm">
             <Section title="Firmante">
               <Row k="Nombre (CN)" v={r.signerName} />
-              <Row k="Organización" v={r.organization} />
+              <Row k="Cédula / RUC" v={r.identification} mono />
+              <Row k="Razón social" v={r.companyName} />
+              <Row k="Cargo" v={r.position} />
+              <Row k="RUC empresa" v={r.companyRuc} mono />
+              <Row k="Organización (cert)" v={r.organization} />
               <Row k="Unidad (OU)" v={r.organizationalUnit} />
-              <Row k="ID / RUC" v={r.identification} mono />
             </Section>
             <Section title="Emisor">
               <Row k="Emisor (CN)" v={r.issuer} />

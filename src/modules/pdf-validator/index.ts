@@ -1,4 +1,5 @@
 import * as pkijs from 'pkijs'
+import * as asn1js from 'asn1js'
 import { bytesToBinaryString, bytesToHex, toArrayBuffer } from '../../lib/bytes'
 import { ensureCryptoEngine } from '../crypto-core/engine'
 import { extractSignatures, type ExtractedSignature } from './extract'
@@ -12,6 +13,12 @@ const OID_OU = '2.5.4.11'
 const OID_SIGNING_TIME = '1.2.840.113549.1.9.5'
 const OID_SIGNATURE_TIMESTAMP = '1.2.840.113549.1.9.16.2.14'
 
+// Extensiones del esquema ecuatoriano (arco 1.3.6.1.4.1.37746.3.*), común a las AC
+// acreditadas (Security Data, BCE, Uanataca…). FirmaEC muestra estos campos.
+const OID_EC_CARGO = '1.3.6.1.4.1.37746.3.5'
+const OID_EC_RAZON_SOCIAL = '1.3.6.1.4.1.37746.3.10'
+const OID_EC_RUC = '1.3.6.1.4.1.37746.3.11'
+
 export interface SignatureReport {
   index: number
   /** 'signature' = firma de persona; 'timestamp' = sello de tiempo del documento (DocTimeStamp). */
@@ -22,6 +29,12 @@ export interface SignatureReport {
   identification?: string
   organization?: string
   organizationalUnit?: string
+  /** Cargo del firmante (esquema ecuatoriano). */
+  position?: string
+  /** Razón social de la empresa representada (esquema ecuatoriano). */
+  companyName?: string
+  /** RUC de la empresa representada (esquema ecuatoriano). */
+  companyRuc?: string
   issuer: string
   rootCa?: string
   signingTime?: Date
@@ -130,6 +143,10 @@ async function analyzeSignature(
     report.certValidTo = signerCert.notAfter.value
     report.certExpired = signerCert.notAfter.value.getTime() < Date.now()
     report.certFingerprintSha256 = await certFingerprint(signerCert)
+    // Campos del esquema ecuatoriano (cargo, razón social, RUC empresa).
+    report.position = readExtensionString(signerCert, OID_EC_CARGO)
+    report.companyName = readExtensionString(signerCert, OID_EC_RAZON_SOCIAL)
+    report.companyRuc = readExtensionString(signerCert, OID_EC_RUC)
   }
   report.rootCa = findRootName(certs, signerCert)
   report.signingTime = readSigningTime(signedData) ?? dict.signingTimeM
@@ -206,6 +223,20 @@ function splitIdFromName(cn: string): { name: string; idFromCn?: string } {
   const m = /^(\d{8,13})[-\s]+(.+)$/.exec(cn.trim())
   if (m) return { idFromCn: m[1], name: m[2].trim() }
   return { name: cn.trim() }
+}
+
+/** Lee el valor (string) de una extensión de certificado por su OID. */
+function readExtensionString(cert: pkijs.Certificate, oid: string): string | undefined {
+  const ext = cert.extensions?.find((e) => e.extnID === oid)
+  if (!ext) return undefined
+  try {
+    const parsed = asn1js.fromBER(ext.extnValue.valueBlock.valueHexView)
+    const value = (parsed.result as { valueBlock?: { value?: unknown } })?.valueBlock?.value
+    const str = typeof value === 'string' ? value.trim() : undefined
+    return str ? str : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function readName(rdn: pkijs.RelativeDistinguishedNames, oid: string): string {
