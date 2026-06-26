@@ -85,7 +85,7 @@ export async function drawSignatureAppearance(
     lines.push({ text: `CI ${appearance.identification}`, size: 6 })
   }
   lines.push({ text: formatDate(signingTime), size: 6 })
-  lines.push({ text: 'Verificar en firmaok.com.ec', size: 5.5, faded: true })
+  lines.push({ text: 'Firmado con firmaok.com.ec', size: 5.5, faded: true })
 
   // Colocación de arriba hacia abajo, con interlineado proporcional al alto disponible.
   const totalSize = lines.reduce((n, l) => n + l.size, 0)
