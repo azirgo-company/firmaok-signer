@@ -1,4 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFPage } from 'pdf-lib'
+import QRCode from 'qrcode'
+import { base64ToBytes } from '../../lib/bytes'
 
 /** Posición del recuadro de firma, en puntos PDF (origen abajo-izquierda). */
 export interface SignaturePosition {
@@ -9,19 +11,31 @@ export interface SignaturePosition {
   height: number
 }
 
-/** Contenido visible del recuadro de firma (estilo FirmaEC). */
+/** Contenido visible del recuadro de firma (QR + datos del firmante). */
 export interface SignatureAppearance {
   name: string
   identification?: string
-  reason?: string
-  location?: string
-  /** Logo opcional en PNG. */
-  logoPng?: Uint8Array
+  /** Datos de empresa (cuando el firmante es persona jurídica / representante). */
+  isCompany?: boolean
+  companyName?: string
+  position?: string
+  companyRuc?: string
+}
+
+/** Enlace que codifica el QR del sello. */
+export const VERIFY_URL = 'https://firmaok.com.ec/'
+
+interface Line {
+  text: string
+  size: number
+  bold?: boolean
+  faded?: boolean
 }
 
 /**
- * Dibuja el recuadro de firma visible sobre la página. Lo que se dibuja queda como
- * apariencia del campo de firma colocado encima por el placeholder.
+ * Dibuja el recuadro de firma visible: QR (enlace de FirmaOK) a la izquierda y los
+ * datos del firmante a la derecha. Para persona jurídica muestra razón social,
+ * cargo y RUC de la empresa.
  */
 export async function drawSignatureAppearance(
   pdfDoc: PDFDocument,
@@ -33,6 +47,7 @@ export async function drawSignatureAppearance(
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
 
+  // Recuadro.
   page.drawRectangle({
     x: pos.x,
     y: pos.y,
@@ -41,44 +56,59 @@ export async function drawSignatureAppearance(
     borderColor: rgb(0.15, 0.39, 0.92),
     borderWidth: 1,
     color: rgb(0.97, 0.98, 1),
-    opacity: 0.9,
+    opacity: 0.95,
   })
 
-  const pad = 6
+  const pad = 5
+
+  // QR a la izquierda (cuadrado, alto del recuadro menos padding).
+  const qrSize = Math.max(28, pos.height - pad * 2)
   let textX = pos.x + pad
-  const textWidth = pos.width - pad * 2
-
-  // Logo opcional a la izquierda.
-  if (appearance.logoPng) {
-    try {
-      const logo = await pdfDoc.embedPng(appearance.logoPng)
-      const logoH = pos.height - pad * 2
-      const logoW = (logo.width / logo.height) * logoH
-      page.drawImage(logo, { x: pos.x + pad, y: pos.y + pad, width: logoW, height: logoH })
-      textX = pos.x + pad + logoW + pad
-    } catch {
-      // Si el logo falla, seguimos solo con texto.
-    }
+  try {
+    const qrPng = await generateQrPng(VERIFY_URL)
+    const qr = await pdfDoc.embedPng(qrPng)
+    page.drawImage(qr, { x: pos.x + pad, y: pos.y + pad, width: qrSize, height: qrSize })
+    textX = pos.x + pad + qrSize + pad
+  } catch {
+    // Si el QR falla, seguimos solo con texto.
   }
 
-  const lines: Array<{ text: string; bold?: boolean }> = [
-    { text: `Firmado por:`, bold: false },
-    { text: appearance.name, bold: true },
-  ]
-  if (appearance.identification) lines.push({ text: `ID: ${appearance.identification}` })
-  if (appearance.reason) lines.push({ text: `Razón: ${appearance.reason}` })
-  if (appearance.location) lines.push({ text: `Lugar: ${appearance.location}` })
-  lines.push({ text: `Fecha: ${formatDate(signingTime)}` })
+  const textWidth = pos.x + pos.width - pad - textX
 
-  const size = 7
-  const lineGap = (pos.height - pad * 2) / lines.length
-  let cursorY = pos.y + pos.height - pad - size
+  // Líneas de texto.
+  const lines: Line[] = [{ text: appearance.name, size: 7, bold: true }]
+  if (appearance.isCompany) {
+    if (appearance.companyName) lines.push({ text: appearance.companyName, size: 6.5, bold: true })
+    if (appearance.position) lines.push({ text: appearance.position, size: 6 })
+    if (appearance.companyRuc) lines.push({ text: `RUC ${appearance.companyRuc}`, size: 6 })
+  } else if (appearance.identification) {
+    lines.push({ text: `CI ${appearance.identification}`, size: 6 })
+  }
+  lines.push({ text: formatDate(signingTime), size: 6 })
+  lines.push({ text: 'Verificar en firmaok.com.ec', size: 5.5, faded: true })
+
+  // Colocación de arriba hacia abajo, con interlineado proporcional al alto disponible.
+  const totalSize = lines.reduce((n, l) => n + l.size, 0)
+  const gap = Math.max(1, (pos.height - pad * 2 - totalSize) / lines.length)
+  let cursorY = pos.y + pos.height - pad
   for (const line of lines) {
+    cursorY -= line.size
     const f = line.bold ? fontBold : font
-    const text = truncate(sanitizeForPdf(line.text), textWidth, f, size)
-    drawSafeText(page, text, { x: textX, y: cursorY, size, font: f, color: rgb(0.1, 0.12, 0.16) })
-    cursorY -= lineGap
+    const color = line.faded ? rgb(0.45, 0.5, 0.58) : rgb(0.1, 0.12, 0.16)
+    const text = truncate(sanitizeForPdf(line.text), textWidth, f, line.size)
+    drawSafeText(page, text, { x: textX, y: cursorY, size: line.size, font: f, color })
+    cursorY -= gap
   }
+}
+
+async function generateQrPng(text: string): Promise<Uint8Array> {
+  const dataUrl = await QRCode.toDataURL(text, {
+    margin: 1,
+    width: 220,
+    errorCorrectionLevel: 'M',
+    color: { dark: '#0f172aff', light: '#ffffffff' },
+  })
+  return base64ToBytes(dataUrl.split(',')[1] ?? '')
 }
 
 /**

@@ -30,7 +30,7 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange }: Props) {
   const [page, setPage] = useState(1)
   const [scale, setScale] = useState(1)
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
-  const [box, setBox] = useState<Box>({ x: 24, y: 24, width: 180, height: 76 })
+  const [box, setBox] = useState<Box>({ x: 24, y: 24, width: 240, height: 84 })
 
   useEffect(() => {
     let active = true

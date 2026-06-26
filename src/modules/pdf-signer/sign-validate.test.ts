@@ -60,7 +60,7 @@ describe('signPdf + validatePdf (end-to-end)', () => {
     const signed = await signPdf({
       pdfBytes: pdf,
       vault,
-      appearance: { name: vault.subject.commonName, identification: vault.subject.identification, reason: 'Aprobación' },
+      appearance: { name: vault.subject.commonName, identification: vault.subject.identification },
       position: { pageIndex: 0, x: 50, y: 50, width: 220, height: 70 },
       signingTime: new Date('2026-06-26T15:00:00Z'),
     })
@@ -80,7 +80,7 @@ describe('signPdf + validatePdf (end-to-end)', () => {
     expect(r.padesProfile).toBe('B-B (básica)')
     expect(r.hashAlgorithm).toBe('SHA-256')
     expect(r.signatureAlgorithm).toBe('SHA256withRSA')
-    expect(r.reason).toBe('Aprobación')
+    expect(r.reason).toContain('FirmaOK')
     expect(r.certFingerprintSha256).toMatch(/^[0-9A-F]{2}(:[0-9A-F]{2})+$/)
     expect(r.appendedBytesAfter).toBe(0)
     expect(r.coveredBytes).toBeGreaterThan(0)

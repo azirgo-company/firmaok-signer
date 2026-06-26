@@ -82,7 +82,14 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
       const signed = await signPdf({
         pdfBytes: pdf.bytes,
         vault: u,
-        appearance: { name: u.subject.commonName, identification: u.subject.identification },
+        appearance: {
+          name: u.subject.commonName,
+          identification: u.subject.identification,
+          isCompany: u.subject.personType === 'juridica',
+          companyName: u.subject.companyName,
+          position: u.subject.position,
+          companyRuc: u.subject.companyRuc,
+        },
         position,
       })
       downloadBytes(signed, pdf.name.replace(/\.pdf$/i, '') + '-firmado.pdf')

@@ -45,10 +45,10 @@ export async function signPdf(req: SignPdfRequest): Promise<Uint8Array> {
   pdflibAddPlaceholder({
     pdfDoc,
     pdfPage: page,
-    reason: req.appearance.reason ?? 'Firma electrónica',
+    reason: 'Firmado digitalmente con FirmaOK · firmaok.com.ec',
     contactInfo: req.appearance.identification ?? '',
     name: req.appearance.name,
-    location: req.appearance.location ?? '',
+    location: req.appearance.companyName ?? 'Ecuador',
     signingTime,
     signatureLength: SIGNATURE_LENGTH,
     subFilter: SUBFILTER_ETSI_CADES_DETACHED,
