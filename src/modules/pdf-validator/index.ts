@@ -91,7 +91,7 @@ async function analyzeSignature(
     location: dict.location,
     subFilter: dict.subFilter,
     trustNote:
-      'Cadena de confianza y revocación (OCSP/CRL) no verificadas en modo offline.',
+      'Modo offline: no se verifican la cadena de confianza, la revocación (OCSP/CRL) ni el sello de tiempo. Solo se comprueba su presencia.',
   }
 
   const certs = (signedData.certificates ?? []).filter(
@@ -131,9 +131,26 @@ async function analyzeSignature(
 
 function detectPadesProfile(signedData: pkijs.SignedData, dict: SigDictFields): string {
   if (dict.subFilter === 'ETSI.RFC3161') return 'Sello de tiempo (DocTimeStamp)'
-  const unsigned = signedData.signerInfos[0]?.unsignedAttrs?.attributes ?? []
-  const hasTimestamp = unsigned.some((a) => a.type === OID_SIGNATURE_TIMESTAMP)
-  return hasTimestamp ? 'B-T (con sello de tiempo)' : 'B-B (básica)'
+  return hasSignatureTimestamp(signedData) ? 'B-T (con sello de tiempo)' : 'B-B (básica)'
+}
+
+/**
+ * B-T requiere un sello de tiempo de TSA embebido (id-aa-signatureTimeStampToken).
+ * Confirmamos no solo que esté el OID, sino que su valor sea un TimeStampToken
+ * real (ContentInfo SignedData RFC 3161), para no reportar B-T por error.
+ * Nota: en modo offline NO verificamos criptográficamente el sello; solo su presencia.
+ */
+function hasSignatureTimestamp(signedData: pkijs.SignedData): boolean {
+  const attrs = signedData.signerInfos[0]?.unsignedAttrs?.attributes ?? []
+  const attr = attrs.find((a) => a.type === OID_SIGNATURE_TIMESTAMP)
+  const value = attr?.values?.[0]
+  if (!value) return false
+  try {
+    const ci = new pkijs.ContentInfo({ schema: value })
+    return ci.contentType === '1.2.840.113549.1.7.2' // signedData (token RFC 3161)
+  } catch {
+    return false
+  }
 }
 
 function findSignerCert(
