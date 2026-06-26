@@ -3,6 +3,8 @@ import { PenLine, ShieldCheck, IdCard, WifiOff } from 'lucide-react'
 import { useVault } from './modules/cert-vault/useVault'
 import { useConsent } from './modules/privacy-lopda/consent'
 import { ConsentScreen } from './modules/privacy-lopda/ConsentScreen'
+import { InstallButton } from './components/InstallButton'
+import { LegalNotice } from './components/LegalNotice'
 import { CertPage } from './pages/CertPage'
 import { SignPage } from './pages/SignPage'
 import { ValidatePage } from './pages/ValidatePage'
@@ -19,6 +21,7 @@ export default function App() {
   const { accepted, accept } = useConsent()
   const vault = useVault()
   const [tab, setTab] = useState<Tab>('firmar')
+  const [showLegal, setShowLegal] = useState(false)
 
   if (!accepted) return <ConsentScreen onAccept={accept} />
 
@@ -36,6 +39,7 @@ export default function App() {
               <WifiOff className="h-3 w-3" strokeWidth={2} />
               100% offline
             </span>
+            <InstallButton />
           </div>
 
           <nav className="flex items-center gap-1 rounded-xl bg-slate-100/80 p-1 dark:bg-slate-900">
@@ -71,8 +75,13 @@ export default function App() {
       </main>
 
       <footer className="border-t border-slate-200/70 py-4 text-center text-xs text-slate-400 dark:border-slate-800/70">
-        Tus datos nunca salen de este dispositivo · Firmas PAdES · LOPDA
+        Tus datos nunca salen de este dispositivo · Firmas PAdES ·{' '}
+        <button onClick={() => setShowLegal(true)} className="underline hover:text-slate-600">
+          Aviso de privacidad
+        </button>
       </footer>
+
+      {showLegal && <LegalNotice onClose={() => setShowLegal(false)} />}
     </div>
   )
 }
