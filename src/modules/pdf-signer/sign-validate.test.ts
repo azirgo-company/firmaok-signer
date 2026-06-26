@@ -35,6 +35,7 @@ async function makeVault(name = 'CARLOS RUIZ', id = '0912345678'): Promise<Unloc
     ['sign'],
   )
   return {
+    id: 'test',
     signingKey,
     leafCertDer: certDer,
     chainDer: [certDer],

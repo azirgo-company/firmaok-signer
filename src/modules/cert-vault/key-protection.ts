@@ -1,14 +1,30 @@
+import { argon2id } from 'hash-wasm'
 import { toArrayBuffer } from '../../lib/bytes'
 
 // Deriva una clave AES-256-GCM de cifrado en reposo a partir de:
 //  - Biometría/passkey del dispositivo (WebAuthn PRF), o
-//  - Un PIN/contraseña maestra elegido por el usuario (PBKDF2).
+//  - Una contraseña maestra elegida por el usuario (Argon2id, memory-hard).
 // La clave AES nunca se persiste: se re-deriva en cada desbloqueo.
 
 export type ProtectionMethod = 'webauthn-prf' | 'pin'
+export type Kdf = 'argon2id' | 'pbkdf2'
 
-const PBKDF2_ITERATIONS = 600_000
+const PBKDF2_ITERATIONS = 600_000 // solo para leer registros legacy
 const APP_PRF_LABEL = new TextEncoder().encode('firmaok-signer/prf/v1')
+
+/** Parámetros de Argon2id. memorySize en KB. */
+export interface ArgonParams {
+  memorySize: number
+  iterations: number
+  parallelism: number
+}
+
+// 64 MB, 3 pasadas: memory-hard, frena fuerza bruta por GPU; aceptable en móvil.
+export const DEFAULT_ARGON_PARAMS: ArgonParams = {
+  memorySize: 65536,
+  iterations: 3,
+  parallelism: 1,
+}
 
 // ---------- AES-GCM en reposo ----------
 
@@ -36,12 +52,34 @@ export async function aesDecrypt(key: CryptoKey, blob: EncryptedBlob): Promise<U
   return new Uint8Array(pt)
 }
 
-// ---------- PIN / contraseña maestra (PBKDF2) ----------
+// ---------- Contraseña maestra (Argon2id, memory-hard) ----------
 
-export async function derivePinKey(pin: string, salt: Uint8Array): Promise<CryptoKey> {
+/** Deriva la clave AES-256-GCM desde la contraseña maestra con Argon2id (WASM). */
+export async function derivePinKey(
+  password: string,
+  salt: Uint8Array,
+  params: ArgonParams = DEFAULT_ARGON_PARAMS,
+): Promise<CryptoKey> {
+  const raw = await argon2id({
+    password,
+    salt,
+    parallelism: params.parallelism,
+    iterations: params.iterations,
+    memorySize: params.memorySize,
+    hashLength: 32,
+    outputType: 'binary',
+  })
+  return crypto.subtle.importKey('raw', toArrayBuffer(raw), 'AES-GCM', false, [
+    'encrypt',
+    'decrypt',
+  ])
+}
+
+/** Derivación PBKDF2 legacy: solo para descifrar registros antiguos. */
+export async function derivePinKeyPbkdf2(password: string, salt: Uint8Array): Promise<CryptoKey> {
   const baseKey = await crypto.subtle.importKey(
     'raw',
-    toArrayBuffer(new TextEncoder().encode(pin)),
+    toArrayBuffer(new TextEncoder().encode(password)),
     'PBKDF2',
     false,
     ['deriveKey'],

@@ -7,6 +7,13 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Cabeceras de seguridad (aplican al documento HTML servido por "location /").
+    # frame-ancestors solo es válido en cabecera (no en meta). App 100% local.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Frame-Options "DENY" always;
+
     # Compresión para los bundles (JS/CSS grandes de cripto/PDF).
     gzip on;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml application/wasm application/manifest+json;

@@ -1,68 +1,77 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  getStoredMethod,
-  hasStoredCertificate,
+  deleteCertificate,
   importP12,
+  listCertificates,
   unlockVault,
-  wipeVault,
+  type CertSummary,
   type ImportOptions,
   type UnlockedVault,
 } from './vault'
-import type { ProtectionMethod } from './key-protection'
 
 export interface VaultState {
   loading: boolean
-  hasCertificate: boolean
-  method: ProtectionMethod | null
+  /** Certificados guardados (resumen visible sin desbloquear). */
+  certificates: CertSummary[]
   /** Certificado desbloqueado en la sesión actual (solo memoria). */
   unlocked: UnlockedVault | null
+  /** Id del certificado activo/desbloqueado. */
+  activeId: string | null
 }
 
 export function useVault() {
   const [state, setState] = useState<VaultState>({
     loading: true,
-    hasCertificate: false,
-    method: null,
+    certificates: [],
     unlocked: null,
+    activeId: null,
   })
 
   const refresh = useCallback(async () => {
-    const [hasCertificate, method] = await Promise.all([hasStoredCertificate(), getStoredMethod()])
-    setState((s) => ({ ...s, loading: false, hasCertificate, method }))
+    const certificates = await listCertificates()
+    setState((s) => ({ ...s, loading: false, certificates }))
   }, [])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
-  const importCertificate = useCallback(
-    async (p12Bytes: Uint8Array, opts: ImportOptions) => {
-      const unlocked = await importP12(p12Bytes, opts)
-      setState((s) => ({
-        ...s,
-        hasCertificate: true,
-        method: opts.method,
-        unlocked,
-      }))
-      return unlocked
-    },
-    [],
-  )
+  const importCertificate = useCallback(async (p12Bytes: Uint8Array, opts: ImportOptions) => {
+    const { id, unlocked } = await importP12(p12Bytes, opts)
+    const certificates = await listCertificates()
+    setState((s) => ({ ...s, certificates, unlocked, activeId: id }))
+    return unlocked
+  }, [])
 
-  const unlock = useCallback(async (pin?: string) => {
-    const unlocked = await unlockVault(pin)
-    setState((s) => ({ ...s, unlocked }))
+  const unlock = useCallback(async (id: string, pin?: string) => {
+    const { id: finalId, unlocked } = await unlockVault(id, pin)
+    const certificates = await listCertificates()
+    setState((s) => ({ ...s, certificates, unlocked, activeId: finalId }))
     return unlocked
   }, [])
 
   const lock = useCallback(() => {
-    setState((s) => ({ ...s, unlocked: null }))
+    setState((s) => ({ ...s, unlocked: null, activeId: null }))
   }, [])
 
-  const wipe = useCallback(async () => {
-    await wipeVault()
-    setState((s) => ({ ...s, hasCertificate: false, method: null, unlocked: null }))
+  const remove = useCallback(async (id: string) => {
+    await deleteCertificate(id)
+    const certificates = await listCertificates()
+    setState((s) => ({
+      ...s,
+      certificates,
+      unlocked: s.activeId === id ? null : s.unlocked,
+      activeId: s.activeId === id ? null : s.activeId,
+    }))
   }, [])
 
-  return { ...state, refresh, importCertificate, unlock, lock, wipe }
+  return {
+    ...state,
+    hasCertificate: state.certificates.length > 0,
+    refresh,
+    importCertificate,
+    unlock,
+    lock,
+    deleteCertificate: remove,
+  }
 }

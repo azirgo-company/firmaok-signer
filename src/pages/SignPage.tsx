@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   UploadCloud,
   Lock,
@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   IdCard,
   ArrowRight,
+  Check,
 } from 'lucide-react'
 import { Alert, Button, Card, EmptyState, Input, Spinner } from '../components/ui'
 import { downloadBytes, readFileBytes } from '../lib/file'
@@ -19,6 +20,8 @@ import type { useVault } from '../modules/cert-vault/useVault'
 type Vault = ReturnType<typeof useVault>
 
 export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () => void }) {
+  const certs = vault.certificates
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pdf, setPdf] = useState<{ name: string; bytes: Uint8Array } | null>(null)
   const [position, setPosition] = useState<SignaturePosition | null>(null)
   const [busy, setBusy] = useState(false)
@@ -26,7 +29,14 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
   const [done, setDone] = useState(false)
   const [pin, setPin] = useState('')
 
-  const u = vault.unlocked
+  // Selección por defecto: el certificado activo, o el primero.
+  useEffect(() => {
+    if (!selectedId && certs.length) setSelectedId(vault.activeId ?? certs[0].id)
+  }, [certs, vault.activeId, selectedId])
+
+  const selected = certs.find((c) => c.id === selectedId) ?? null
+  const ready = !!vault.unlocked && vault.activeId === selectedId
+  const u = ready ? vault.unlocked : null
 
   if (!vault.hasCertificate) {
     return (
@@ -45,10 +55,12 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
   }
 
   async function handleUnlock() {
+    if (!selected) return
     setError(null)
     setBusy(true)
     try {
-      await vault.unlock(vault.method === 'pin' ? pin : undefined)
+      await vault.unlock(selected.id, selected.method === 'pin' ? pin : undefined)
+      setPin('')
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -70,10 +82,7 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
       const signed = await signPdf({
         pdfBytes: pdf.bytes,
         vault: u,
-        appearance: {
-          name: u.subject.commonName,
-          identification: u.subject.identification,
-        },
+        appearance: { name: u.subject.commonName, identification: u.subject.identification },
         position,
       })
       downloadBytes(signed, pdf.name.replace(/\.pdf$/i, '') + '-firmado.pdf')
@@ -85,33 +94,43 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
     }
   }
 
+  // No desbloqueado aún: selector + desbloqueo.
   if (!u) {
     return (
-      <div className="flex flex-1 items-center justify-center px-4 py-12">
-        <Card className="flex w-full max-w-md flex-col items-center gap-4 text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-500/10 text-brand-600">
-            {vault.method === 'pin' ? <Lock className="h-6 w-6" strokeWidth={2} /> : <Fingerprint className="h-6 w-6" strokeWidth={2} />}
-          </span>
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight">Desbloquea para firmar</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {vault.method === 'pin'
-                ? 'Ingresa tu PIN para usar el certificado.'
-                : 'Confirma con tu biometría para usar el certificado.'}
+      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-4 px-4 py-12">
+        <header className="text-center">
+          <h2 className="text-2xl font-semibold tracking-tight">Firmar PDF</h2>
+          <p className="mt-1 text-sm text-slate-500">Elige el certificado y desbloquéalo para firmar.</p>
+        </header>
+
+        <CertSelector certs={certs} selectedId={selectedId} onSelect={setSelectedId} />
+
+        <Card className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-500/10 text-brand-600">
+              {selected?.method === 'pin' ? (
+                <Lock className="h-5 w-5" strokeWidth={2} />
+              ) : (
+                <Fingerprint className="h-5 w-5" strokeWidth={2} />
+              )}
+            </span>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              {selected?.method === 'pin'
+                ? 'Ingresa tu contraseña maestra para usar este certificado.'
+                : 'Confirma con tu biometría para usar este certificado.'}
             </p>
           </div>
-          {vault.method === 'pin' && (
+          {selected?.method === 'pin' && (
             <Input
               type="password"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
-              placeholder="PIN"
-              className="w-full text-center"
+              placeholder="Contraseña maestra"
             />
           )}
           {error && <Alert kind="error">{error}</Alert>}
-          <Button onClick={handleUnlock} disabled={busy} className="w-full">
-            {busy ? <Spinner className="h-4 w-4" /> : vault.method === 'pin' ? <Lock className="h-4 w-4" strokeWidth={2} /> : <Fingerprint className="h-4 w-4" strokeWidth={2} />}
+          <Button onClick={handleUnlock} disabled={busy}>
+            {busy ? <Spinner className="h-4 w-4" /> : <Lock className="h-4 w-4" strokeWidth={2} />}
             {busy ? 'Desbloqueando…' : 'Desbloquear'}
           </Button>
         </Card>
@@ -120,11 +139,19 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8">
       <header>
         <h2 className="text-2xl font-semibold tracking-tight">Firmar PDF</h2>
         <p className="mt-1 text-sm text-slate-500">
           Firmando como <span className="font-medium text-slate-700 dark:text-slate-200">{u.subject.commonName}</span>
+          {certs.length > 1 && (
+            <>
+              {' · '}
+              <button className="font-medium text-brand-600 underline" onClick={vault.lock}>
+                cambiar certificado
+              </button>
+            </>
+          )}
         </p>
       </header>
 
@@ -177,6 +204,49 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function CertSelector({
+  certs,
+  selectedId,
+  onSelect,
+}: {
+  certs: Vault['certificates']
+  selectedId: string | null
+  onSelect: (id: string) => void
+}) {
+  if (certs.length <= 1) return null
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Firmar con</span>
+      <div className="flex flex-col gap-2">
+        {certs.map((c) => {
+          const active = c.id === selectedId
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onSelect(c.id)}
+              className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                active
+                  ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10'
+                  : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/50'
+              }`}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{c.label}</span>
+                <span className="block text-xs text-slate-500">
+                  {c.method === 'webauthn-prf' ? 'Biometría' : 'Contraseña maestra'}
+                  {c.expired && ' · vencido'}
+                </span>
+              </span>
+              {active && <Check className="h-4 w-4 shrink-0 text-brand-600" strokeWidth={2.5} />}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { PenLine, ShieldCheck, IdCard, WifiOff } from 'lucide-react'
 import { useVault } from './modules/cert-vault/useVault'
 import { useConsent } from './modules/privacy-lopda/consent'
 import { ConsentScreen } from './modules/privacy-lopda/ConsentScreen'
-import { FlowSteps } from './components/FlowSteps'
 import { CertPage } from './pages/CertPage'
 import { SignPage } from './pages/SignPage'
 import { ValidatePage } from './pages/ValidatePage'
@@ -20,15 +19,6 @@ export default function App() {
   const { accepted, accept } = useConsent()
   const vault = useVault()
   const [tab, setTab] = useState<Tab>('firmar')
-
-  // Ruteo inteligente: al primer uso sin certificado, llevamos a "Certificado" (paso 1).
-  const routedRef = useRef(false)
-  useEffect(() => {
-    if (!vault.loading && !routedRef.current) {
-      routedRef.current = true
-      if (!vault.hasCertificate) setTab('certificado')
-    }
-  }, [vault.loading, vault.hasCertificate])
 
   if (!accepted) return <ConsentScreen onAccept={accept} />
 
@@ -73,8 +63,6 @@ export default function App() {
           </nav>
         </div>
       </header>
-
-      <FlowSteps current={tab} certDone={vault.hasCertificate} onNavigate={setTab} />
 
       <main className="flex flex-1 flex-col">
         {tab === 'firmar' && <SignPage vault={vault} onGoToCert={() => setTab('certificado')} />}
