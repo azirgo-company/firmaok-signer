@@ -15,6 +15,7 @@ const OID_SIGNATURE_TIMESTAMP = '1.2.840.113549.1.9.16.2.14'
 
 // Extensiones del esquema ecuatoriano (arco 1.3.6.1.4.1.37746.3.*), común a las AC
 // acreditadas (Security Data, BCE, Uanataca…). FirmaEC muestra estos campos.
+const OID_EC_CEDULA = '1.3.6.1.4.1.37746.3.1'
 const OID_EC_CARGO = '1.3.6.1.4.1.37746.3.5'
 const OID_EC_RAZON_SOCIAL = '1.3.6.1.4.1.37746.3.10'
 const OID_EC_RUC = '1.3.6.1.4.1.37746.3.11'
@@ -135,7 +136,11 @@ async function analyzeSignature(
     // Separamos la identificación del nombre para mostrarlos por separado.
     const { name, idFromCn } = splitIdFromName(readName(signerCert.subject, OID_CN))
     report.signerName = name || 'Desconocido'
-    report.identification = readName(signerCert.subject, OID_SERIAL) || idFromCn || undefined
+    report.identification =
+      readExtensionString(signerCert, OID_EC_CEDULA) ||
+      readName(signerCert.subject, OID_SERIAL) ||
+      idFromCn ||
+      undefined
     report.organization = readName(signerCert.subject, OID_ORG) || undefined
     report.organizationalUnit = readName(signerCert.subject, OID_OU) || undefined
     report.issuer = readName(signerCert.issuer, OID_CN) || 'Desconocido'

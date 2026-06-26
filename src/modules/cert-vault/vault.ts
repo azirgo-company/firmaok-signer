@@ -1,6 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb'
 import { base64ToBytes, bytesToBase64, toArrayBuffer } from '../../lib/bytes'
-import { parseP12, type CertSubject } from './p12'
+import { parseP12, readSubjectFromDer, type CertSubject } from './p12'
 import {
   aesDecrypt,
   aesEncrypt,
@@ -184,11 +184,21 @@ async function toUnlocked(pkcs8: Uint8Array, metadata: CertMetadata): Promise<Un
   // Limpiamos la copia en claro de la clave en memoria lo antes posible.
   pkcs8.fill(0)
 
+  const leafCertDer = base64ToBytes(metadata.leafCertDer)
+  // Re-parseamos el subject desde el certificado para aplicar mejoras de parsing
+  // (cédula EC, cargo, razón social) también a certificados ya almacenados.
+  let subject = metadata.subject
+  try {
+    subject = readSubjectFromDer(leafCertDer)
+  } catch {
+    // Si falla, conservamos el subject guardado.
+  }
+
   return {
     signingKey,
-    leafCertDer: base64ToBytes(metadata.leafCertDer),
+    leafCertDer,
     chainDer: metadata.chainDer.map(base64ToBytes),
-    subject: metadata.subject,
+    subject,
     validFrom: new Date(metadata.validFrom),
     validTo: new Date(metadata.validTo),
   }

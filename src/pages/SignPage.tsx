@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { UploadCloud, Lock, Fingerprint, Download, RotateCcw, FileText, CheckCircle2 } from 'lucide-react'
-import { Alert, Button, Card, Field, Input, Spinner } from '../components/ui'
+import { Alert, Button, Card, Input, Spinner } from '../components/ui'
 import { downloadBytes, readFileBytes } from '../lib/file'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
 import { signPdf, type SignaturePosition } from '../modules/pdf-signer'
@@ -11,8 +11,6 @@ type Vault = ReturnType<typeof useVault>
 export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () => void }) {
   const [pdf, setPdf] = useState<{ name: string; bytes: Uint8Array } | null>(null)
   const [position, setPosition] = useState<SignaturePosition | null>(null)
-  const [reason, setReason] = useState('Soy autor del documento')
-  const [location, setLocation] = useState('Ecuador')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
@@ -62,8 +60,6 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
         appearance: {
           name: u.subject.commonName,
           identification: u.subject.identification,
-          reason,
-          location,
         },
         position,
       })
@@ -142,17 +138,6 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
           </Card>
 
           <div className="flex min-w-0 flex-col gap-4">
-            <Card>
-              <div className="flex flex-col gap-4">
-                <Field label="Razón">
-                  <Input value={reason} onChange={(e) => setReason(e.target.value)} />
-                </Field>
-                <Field label="Lugar">
-                  <Input value={location} onChange={(e) => setLocation(e.target.value)} />
-                </Field>
-              </div>
-            </Card>
-
             {error && <Alert kind="error">{error}</Alert>}
             {done && (
               <Alert kind="success">

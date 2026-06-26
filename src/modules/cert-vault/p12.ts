@@ -1,5 +1,5 @@
 import forge from 'node-forge'
-import { binaryStringToBytes } from '../../lib/bytes'
+import { binaryStringToBytes, bytesToBinaryString } from '../../lib/bytes'
 
 export interface ParsedP12 {
   /** Clave privada en DER PKCS#8, lista para importar a WebCrypto. */
@@ -20,9 +20,21 @@ export interface CertSubject {
   commonName: string
   organization?: string
   serialNumber?: string
-  /** Identificación (cédula/RUC) si viene en el campo serialNumber del subject. */
+  /** Cédula del firmante (preferida desde la extensión ecuatoriana). */
   identification?: string
+  /** Cargo del firmante (esquema ecuatoriano). */
+  position?: string
+  /** Razón social de la empresa representada. */
+  companyName?: string
+  /** RUC de la empresa representada. */
+  companyRuc?: string
 }
+
+// Extensiones del esquema ecuatoriano (arco 1.3.6.1.4.1.37746.3.*).
+const OID_EC_CEDULA = '1.3.6.1.4.1.37746.3.1'
+const OID_EC_CARGO = '1.3.6.1.4.1.37746.3.5'
+const OID_EC_RAZON_SOCIAL = '1.3.6.1.4.1.37746.3.10'
+const OID_EC_RUC = '1.3.6.1.4.1.37746.3.11'
 
 export class P12ParseError extends Error {}
 
@@ -135,6 +147,12 @@ function certToDer(cert: forge.pki.Certificate): Uint8Array {
   return binaryStringToBytes(forge.asn1.toDer(asn1).getBytes())
 }
 
+/** Re-parsea los datos del firmante desde el certificado DER (para certificados ya guardados). */
+export function readSubjectFromDer(der: Uint8Array): CertSubject {
+  const cert = forge.pki.certificateFromAsn1(forge.asn1.fromDer(bytesToBinaryString(der)))
+  return readSubject(cert)
+}
+
 function readSubject(cert: forge.pki.Certificate): CertSubject {
   // Buscamos por shortName, name u OID para máxima compatibilidad entre certificados.
   const attrs = cert.subject.attributes as Array<{
@@ -149,12 +167,40 @@ function readSubject(cert: forge.pki.Certificate): CertSubject {
     return typeof a?.value === 'string' ? decodeDirectoryString(a.value, a.valueTagClass) : undefined
   }
   const serialNumber = get('serialNumber', '2.5.4.5')
+  // En certificados ecuatorianos la cédula real está en la extensión .3.1; el
+  // serialNumber del subject puede ser un UUID o traer un sufijo. Preferimos la extensión.
+  const cedulaExt = readEcExtension(cert, OID_EC_CEDULA)
+  const { name } = splitLeadingId(get('CN', 'commonName', '2.5.4.3') ?? 'Desconocido')
   return {
-    commonName: get('CN', 'commonName', '2.5.4.3') ?? 'Desconocido',
+    commonName: name,
     organization: get('O', 'organizationName', '2.5.4.10'),
     serialNumber,
-    // En certificados ecuatorianos la cédula/RUC suele ir en serialNumber del subject.
-    identification: serialNumber,
+    identification: cedulaExt || serialNumber,
+    position: readEcExtension(cert, OID_EC_CARGO),
+    companyName: readEcExtension(cert, OID_EC_RAZON_SOCIAL),
+    companyRuc: readEcExtension(cert, OID_EC_RUC),
+  }
+}
+
+/** Quita una cédula/RUC inicial del CN: "0950194407 JUAN PEREZ" -> "JUAN PEREZ". */
+function splitLeadingId(cn: string): { name: string } {
+  const m = /^\d{8,13}[-\s]+(.+)$/.exec(cn.trim())
+  return { name: m ? m[1].trim() : cn.trim() }
+}
+
+/** Lee el valor (string) de una extensión propietaria del certificado por su OID. */
+function readEcExtension(cert: forge.pki.Certificate, oid: string): string | undefined {
+  const exts = cert.extensions as Array<{ id?: string; value?: unknown }>
+  const ext = exts?.find((e) => e.id === oid)
+  if (!ext || typeof ext.value !== 'string') return undefined
+  try {
+    const asn1 = forge.asn1.fromDer(ext.value)
+    const raw = typeof asn1.value === 'string' ? asn1.value : undefined
+    if (!raw) return undefined
+    const decoded = decodeDirectoryString(raw, asn1.type as number).trim()
+    return decoded || undefined
+  } catch {
+    return undefined
   }
 }
 
