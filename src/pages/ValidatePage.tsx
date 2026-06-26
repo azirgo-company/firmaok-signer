@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Skeleton } from '../components/ui'
 import { readFileBytes } from '../lib/file'
+import { formatDateTime } from '../lib/date'
 import { validatePdf, type SignatureReport } from '../modules/pdf-validator'
 import { PdfThumbnail } from '../modules/pdf-viewer/PdfThumbnail'
 
@@ -193,7 +194,7 @@ function SignatureCard({ r }: { r: SignatureReport }) {
                   <p className="mt-0.5 text-xs text-slate-500">
                     Fecha del sello:{' '}
                     <span className="text-slate-700 dark:text-slate-300">
-                      {r.signingTime.toLocaleString()}
+                      {formatDateTime(r.signingTime)}
                     </span>
                   </p>
                 )}
@@ -278,15 +279,15 @@ function SignatureCard({ r }: { r: SignatureReport }) {
               <Row k="Root CA" v={r.rootCa} />
             </Section>
             <Section title="Certificado">
-              <Row k="Desde" v={r.certValidFrom?.toLocaleString()} />
-              <Row k="Hasta" v={r.certValidTo?.toLocaleString()} />
+              <Row k="Desde" v={formatDateTime(r.certValidFrom)} />
+              <Row k="Hasta" v={formatDateTime(r.certValidTo)} />
               <Row k="Huella SHA-256" v={r.certFingerprintSha256} mono wrap />
             </Section>
             <Section title="Firma">
               <Row k="Perfil PAdES" v={r.padesProfile} badge />
               <Row k="Hash" v={r.hashAlgorithm} mono />
               <Row k="Algoritmo" v={r.signatureAlgorithm} mono />
-              <Row k="Fecha declarada" v={r.signingTime?.toLocaleString() ?? '—'} />
+              <Row k="Fecha declarada" v={formatDateTime(r.signingTime)} />
               <Row k="Razón" v={r.reason} />
               <Row k="Lugar" v={r.location} />
             </Section>

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Field, Input, Spinner } from '../components/ui'
 import { readFileBytes } from '../lib/file'
+import { formatDate } from '../lib/date'
 import { isWebAuthnPrfSupported, type ProtectionMethod } from '../modules/cert-vault/key-protection'
 import type { useVault } from '../modules/cert-vault/useVault'
 
@@ -254,7 +255,7 @@ function StoredCert({ vault }: { vault: Vault }) {
                   </>
                 )}
                 <dt className="text-slate-400">Válido hasta</dt>
-                <dd>{u.validTo.toLocaleDateString()}</dd>
+                <dd>{formatDate(u.validTo)}</dd>
               </dl>
             )}
           </div>
