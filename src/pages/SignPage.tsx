@@ -181,7 +181,19 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
       ) : (
         <div className="grid gap-6 md:grid-cols-[1fr_300px]">
           <Card padded={false} className="min-w-0 overflow-hidden p-3">
-            <PdfSignCanvas pdfBytes={pdf.bytes} onPositionChange={setPosition} />
+            <PdfSignCanvas
+              pdfBytes={pdf.bytes}
+              onPositionChange={setPosition}
+              preview={{
+                name: u.subject.commonName,
+                subline:
+                  u.subject.personType === 'juridica'
+                    ? u.subject.companyName
+                    : u.subject.identification
+                      ? `CI ${u.subject.identification}`
+                      : undefined,
+              }}
+            />
           </Card>
 
           <div className="flex min-w-0 flex-col gap-4">
