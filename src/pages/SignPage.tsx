@@ -1,6 +1,16 @@
 import { useState } from 'react'
-import { UploadCloud, Lock, Fingerprint, Download, RotateCcw, FileText, CheckCircle2 } from 'lucide-react'
-import { Alert, Button, Card, Input, Spinner } from '../components/ui'
+import {
+  UploadCloud,
+  Lock,
+  Fingerprint,
+  Download,
+  RotateCcw,
+  FileText,
+  CheckCircle2,
+  IdCard,
+  ArrowRight,
+} from 'lucide-react'
+import { Alert, Button, Card, EmptyState, Input, Spinner } from '../components/ui'
 import { downloadBytes, readFileBytes } from '../lib/file'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
 import { signPdf, type SignaturePosition } from '../modules/pdf-signer'
@@ -20,14 +30,17 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
 
   if (!vault.hasCertificate) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-8">
-        <Alert kind="info">
-          Primero importa tu certificado.{' '}
-          <button className="font-medium underline" onClick={onGoToCert}>
-            Ir a Certificado
-          </button>
-        </Alert>
-      </div>
+      <EmptyState
+        icon={<IdCard className="h-8 w-8" strokeWidth={1.75} />}
+        title="Primero, tu certificado"
+        description="Para firmar documentos necesitas tu certificado de firma (.p12). Se importa una sola vez y se guarda cifrado en este dispositivo."
+      >
+        <Button onClick={onGoToCert}>
+          <IdCard className="h-4 w-4" strokeWidth={2} />
+          Importar certificado
+          <ArrowRight className="h-4 w-4" strokeWidth={2} />
+        </Button>
+      </EmptyState>
     )
   }
 
@@ -74,8 +87,8 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
 
   if (!u) {
     return (
-      <div className="mx-auto max-w-md px-4 py-12">
-        <Card className="flex flex-col items-center gap-4 text-center">
+      <div className="flex flex-1 items-center justify-center px-4 py-12">
+        <Card className="flex w-full max-w-md flex-col items-center gap-4 text-center">
           <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-500/10 text-brand-600">
             {vault.method === 'pin' ? <Lock className="h-6 w-6" strokeWidth={2} /> : <Fingerprint className="h-6 w-6" strokeWidth={2} />}
           </span>

@@ -47,16 +47,45 @@ export function ValidatePage() {
     setError(null)
   }
 
+  if (!pdfBytes) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-4 py-10">
+        <div className="w-full max-w-2xl">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl font-semibold tracking-tight">Validar firmas</h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+              Comprueba quién firmó un PDF, si el documento es íntegro y si tiene sello de tiempo.
+              Todo en tu navegador; el PDF nunca se sube.
+            </p>
+          </div>
+          {error && (
+            <div className="mb-4">
+              <Alert kind="error">{error}</Alert>
+            </div>
+          )}
+          <Dropzone onPick={handlePick} />
+          <div className="mt-5 flex flex-col items-center justify-center gap-2.5 text-sm text-slate-500 sm:flex-row sm:gap-6">
+            <span className="flex items-center gap-1.5">
+              <BadgeCheck className="h-4 w-4 text-emerald-500" strokeWidth={2} /> Firmante y validez
+            </span>
+            <span className="flex items-center gap-1.5">
+              <FileText className="h-4 w-4 text-brand-500" strokeWidth={2} /> Integridad del documento
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-sky-500" strokeWidth={2} /> Sello de tiempo
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
-      <header>
+      <header className="flex items-center justify-between gap-2">
         <h2 className="text-2xl font-semibold tracking-tight">Validar firmas</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Todo se procesa en tu navegador. El PDF nunca se sube a un servidor.
-        </p>
       </header>
 
-      {!pdfBytes && <Dropzone onPick={handlePick} />}
       {error && <Alert kind="error">{error}</Alert>}
 
       {pdfBytes && (

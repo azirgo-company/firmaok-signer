@@ -104,6 +104,32 @@ export function Badge({
   )
 }
 
+/** Estado vacío compuesto y centrado: icono + título + descripción + acción. */
+export function EmptyState({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  children?: ReactNode
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-5 px-4 py-12 text-center">
+      <span className="grid h-16 w-16 place-items-center rounded-2xl bg-brand-500/10 text-brand-600">
+        {icon}
+      </span>
+      <div className="max-w-sm">
+        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-500">{description}</p>
+      </div>
+      {children}
+    </div>
+  )
+}
+
 export function Spinner({ className = '' }: { className?: string }) {
   return (
     <span
