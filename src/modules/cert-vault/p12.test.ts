@@ -67,4 +67,29 @@ describe('parseP12', () => {
     )
     expect(sig.byteLength).toBeGreaterThan(0)
   })
+
+  it('decodifica nombres UTF-8 (tildes y Ñ) sin mojibake', () => {
+    const cn = 'JEFFERSON ROBERTO MOSQUERA VIÑAN'
+    const keys = forge.pki.rsa.generateKeyPair(1024)
+    const cert = forge.pki.createCertificate()
+    cert.publicKey = keys.publicKey
+    cert.serialNumber = '02'
+    cert.validity.notBefore = new Date('2024-01-01')
+    cert.validity.notAfter = new Date('2030-06-15')
+    // CN como UTF8String: forge codifica el string a UTF-8 en el DER (Ñ -> 0xC3 0x91),
+    // igual que un certificado real ecuatoriano.
+    const attrs = [
+      { name: 'commonName', value: cn, valueTagClass: forge.asn1.Type.UTF8 as never },
+      { type: '2.5.4.5', value: '0950194407' },
+    ]
+    cert.setSubject(attrs)
+    cert.setIssuer(attrs)
+    cert.sign(keys.privateKey, forge.md.sha256.create())
+    const asn1 = forge.pkcs12.toPkcs12Asn1(keys.privateKey, [cert], 'x', { algorithm: '3des' })
+    const bytes = binaryStringToBytes(forge.asn1.toDer(asn1).getBytes())
+
+    const parsed = parseP12(bytes, 'x')
+    expect(parsed.subject.commonName).toBe(cn)
+    expect(parsed.subject.commonName).not.toContain('Ã')
+  })
 })

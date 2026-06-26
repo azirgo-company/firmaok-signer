@@ -142,10 +142,11 @@ function readSubject(cert: forge.pki.Certificate): CertSubject {
     name?: string
     type?: string
     value?: unknown
+    valueTagClass?: number
   }>
   const get = (...keys: string[]) => {
     const a = attrs.find((x) => keys.includes(x.shortName ?? '') || keys.includes(x.name ?? '') || keys.includes(x.type ?? ''))
-    return typeof a?.value === 'string' ? a.value : undefined
+    return typeof a?.value === 'string' ? decodeDirectoryString(a.value, a.valueTagClass) : undefined
   }
   const serialNumber = get('serialNumber', '2.5.4.5')
   return {
@@ -154,5 +155,24 @@ function readSubject(cert: forge.pki.Certificate): CertSubject {
     serialNumber,
     // En certificados ecuatorianos la cédula/RUC suele ir en serialNumber del subject.
     identification: serialNumber,
+  }
+}
+
+/**
+ * node-forge entrega los UTF8String del subject como bytes crudos (binary string),
+ * lo que produce mojibake con tildes/Ñ (p.ej. "VIÑAN" -> "VIÃAN"). Re-decodificamos
+ * a UTF-8 cuando el tipo ASN.1 es UTF8String o cuando hay bytes altos (>=0x80).
+ */
+function decodeDirectoryString(value: string, tag?: number): string {
+  const ASN1_UTF8 = 12
+  const hasHighBytes = /[-ÿ]/.test(value)
+  if (tag !== ASN1_UTF8 && !hasHighBytes) return value
+  try {
+    const bytes = Uint8Array.from(value, (c) => c.charCodeAt(0) & 0xff)
+    const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+    // Si la decodificación introdujo el carácter de reemplazo, conservamos el original.
+    return decoded.includes('�') ? value : decoded
+  } catch {
+    return value
   }
 }

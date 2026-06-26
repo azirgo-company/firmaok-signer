@@ -74,14 +74,31 @@ export async function drawSignatureAppearance(
   const lineGap = (pos.height - pad * 2) / lines.length
   let cursorY = pos.y + pos.height - pad - size
   for (const line of lines) {
-    page.drawText(truncate(line.text, textWidth, line.bold ? fontBold : font, size), {
-      x: textX,
-      y: cursorY,
-      size,
-      font: line.bold ? fontBold : font,
-      color: rgb(0.1, 0.12, 0.16),
-    })
+    const f = line.bold ? fontBold : font
+    const text = truncate(sanitizeForPdf(line.text), textWidth, f, size)
+    drawSafeText(page, text, { x: textX, y: cursorY, size, font: f, color: rgb(0.1, 0.12, 0.16) })
     cursorY -= lineGap
+  }
+}
+
+/**
+ * La fuente estándar (WinAnsi) no puede codificar caracteres de control ni fuera de
+ * Latin-1. Quitamos controles C0/C1 (origen de errores como 0x0091) para evitar crashes.
+ */
+function sanitizeForPdf(text: string): string {
+  return text.replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
+}
+
+/** Dibuja texto; si algún carácter no es codificable en WinAnsi, cae a una versión ASCII. */
+function drawSafeText(
+  page: PDFPage,
+  text: string,
+  opts: Parameters<PDFPage['drawText']>[1],
+): void {
+  try {
+    page.drawText(text, opts)
+  } catch {
+    page.drawText(text.replace(/[^\x20-\x7e]/g, '?'), opts)
   }
 }
 
