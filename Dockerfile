@@ -4,7 +4,9 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-# Habilita pnpm vía corepack.
+# Habilita pnpm vía corepack. La versión la fija el campo "packageManager" de
+# package.json (pnpm 10.32.1, el que generó el lockfile) y se activa al instalar.
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 
 # Instala dependencias con cache de capa (solo se reejecuta si cambian los manifiestos).
