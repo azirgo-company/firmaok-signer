@@ -27,10 +27,11 @@ export default function App() {
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-slate-50/80 backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-500 text-white shadow-sm">
-              <PenLine className="h-4 w-4" strokeWidth={2} />
-            </span>
-            <span className="text-[15px] font-semibold tracking-tight">FirmaOK</span>
+            <img
+              src="/logo-firmaok.webp"
+              alt="FirmaOK"
+              className="h-7 w-auto rounded-md bg-white"
+            />
             <span className="hidden items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 sm:inline-flex dark:bg-slate-800 dark:text-slate-400">
               <WifiOff className="h-3 w-3" strokeWidth={2} />
               100% offline

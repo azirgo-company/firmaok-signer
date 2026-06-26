@@ -1,4 +1,4 @@
-import { PenLine, Lock, ShieldCheck, Trash2, WifiOff, ArrowRight } from 'lucide-react'
+import { Lock, ShieldCheck, Trash2, WifiOff, ArrowRight } from 'lucide-react'
 import { Button } from '../../components/ui'
 
 interface Props {
@@ -34,11 +34,12 @@ export function ConsentScreen({ onAccept }: Props) {
     <div className="grid min-h-[100dvh] place-items-center px-4 py-10">
       <div className="w-full max-w-xl">
         <div className="mb-8 flex flex-col items-center text-center">
-          <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-brand-500 text-white shadow-[0_8px_24px_-8px_rgba(37,99,235,0.6)]">
-            <PenLine className="h-7 w-7" strokeWidth={2} />
-          </span>
-          <h1 className="text-3xl font-semibold tracking-tight">FirmaOK</h1>
-          <p className="mt-1.5 text-[15px] text-slate-500">
+          <img
+            src="/logo-firmaok.webp"
+            alt="FirmaOK"
+            className="mb-4 h-12 w-auto rounded-lg bg-white"
+          />
+          <p className="text-[15px] text-slate-500">
             Firma y valida PDF — 100% en tu dispositivo
           </p>
         </div>
