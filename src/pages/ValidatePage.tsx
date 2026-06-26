@@ -264,11 +264,12 @@ function SignatureCard({ r }: { r: SignatureReport }) {
         {open && (
           <div className="space-y-5 px-5 pb-5 text-sm">
             <Section title="Firmante">
+              <Row k="Tipo" v={r.personTypeLabel} />
               <Row k="Nombre (CN)" v={r.signerName} />
-              <Row k="Cédula / RUC" v={r.identification} mono />
+              <Row k="Cédula" v={r.identification} mono />
               <Row k="Razón social" v={r.companyName} />
               <Row k="Cargo" v={r.position} />
-              <Row k="RUC empresa" v={r.companyRuc} mono />
+              <Row k={r.personType === 'juridica' ? 'RUC empresa' : 'RUC'} v={r.companyRuc} mono />
               <Row k="Organización (cert)" v={r.organization} />
               <Row k="Unidad (OU)" v={r.organizationalUnit} />
             </Section>

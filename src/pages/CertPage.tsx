@@ -221,6 +221,12 @@ function StoredCert({ vault }: { vault: Vault }) {
             </p>
             {u && (
               <dl className="mt-3 grid grid-cols-[100px_1fr] gap-y-1 text-sm">
+                {u.subject.personTypeLabel && (
+                  <>
+                    <dt className="text-slate-400">Tipo</dt>
+                    <dd>{u.subject.personTypeLabel}</dd>
+                  </>
+                )}
                 {u.subject.identification && (
                   <>
                     <dt className="text-slate-400">Cédula</dt>
@@ -241,7 +247,9 @@ function StoredCert({ vault }: { vault: Vault }) {
                 )}
                 {u.subject.companyRuc && (
                   <>
-                    <dt className="text-slate-400">RUC empresa</dt>
+                    <dt className="text-slate-400">
+                      {u.subject.personType === 'juridica' ? 'RUC empresa' : 'RUC'}
+                    </dt>
                     <dd className="font-mono text-[12px]">{u.subject.companyRuc}</dd>
                   </>
                 )}

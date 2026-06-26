@@ -1,6 +1,13 @@
 import * as pkijs from 'pkijs'
 import * as asn1js from 'asn1js'
 import { bytesToBinaryString, bytesToHex, toArrayBuffer } from '../../lib/bytes'
+import {
+  classifyPerson,
+  EC_FIELD,
+  ecFieldNumber,
+  type EcFields,
+  type PersonType,
+} from '../../lib/ecuador-cert'
 import { ensureCryptoEngine } from '../crypto-core/engine'
 import { extractSignatures, type ExtractedSignature } from './extract'
 import { parseSigDict, type SigDictFields } from './sigdict'
@@ -12,13 +19,6 @@ const OID_ORG = '2.5.4.10'
 const OID_OU = '2.5.4.11'
 const OID_SIGNING_TIME = '1.2.840.113549.1.9.5'
 const OID_SIGNATURE_TIMESTAMP = '1.2.840.113549.1.9.16.2.14'
-
-// Extensiones del esquema ecuatoriano (arco 1.3.6.1.4.1.37746.3.*), común a las AC
-// acreditadas (Security Data, BCE, Uanataca…). FirmaEC muestra estos campos.
-const OID_EC_CEDULA = '1.3.6.1.4.1.37746.3.1'
-const OID_EC_CARGO = '1.3.6.1.4.1.37746.3.5'
-const OID_EC_RAZON_SOCIAL = '1.3.6.1.4.1.37746.3.10'
-const OID_EC_RUC = '1.3.6.1.4.1.37746.3.11'
 
 export interface SignatureReport {
   index: number
@@ -34,8 +34,11 @@ export interface SignatureReport {
   position?: string
   /** Razón social de la empresa representada (esquema ecuatoriano). */
   companyName?: string
-  /** RUC de la empresa representada (esquema ecuatoriano). */
+  /** RUC de la empresa (jurídica) o personal (natural con RUC). */
   companyRuc?: string
+  /** Tipo de firmante: persona natural / natural con RUC / jurídica. */
+  personType?: PersonType
+  personTypeLabel?: string
   issuer: string
   rootCa?: string
   signingTime?: Date
@@ -135,12 +138,10 @@ async function analyzeSignature(
     // En certificados ecuatorianos el CN suele venir como "<cédula> NOMBRE APELLIDOS".
     // Separamos la identificación del nombre para mostrarlos por separado.
     const { name, idFromCn } = splitIdFromName(readName(signerCert.subject, OID_CN))
+    const ec = readEcFields(signerCert)
+    const { type, label } = classifyPerson(ec)
     report.signerName = name || 'Desconocido'
-    report.identification =
-      readExtensionString(signerCert, OID_EC_CEDULA) ||
-      readName(signerCert.subject, OID_SERIAL) ||
-      idFromCn ||
-      undefined
+    report.identification = ec.cedula || readName(signerCert.subject, OID_SERIAL) || idFromCn || undefined
     report.organization = readName(signerCert.subject, OID_ORG) || undefined
     report.organizationalUnit = readName(signerCert.subject, OID_OU) || undefined
     report.issuer = readName(signerCert.issuer, OID_CN) || 'Desconocido'
@@ -148,10 +149,11 @@ async function analyzeSignature(
     report.certValidTo = signerCert.notAfter.value
     report.certExpired = signerCert.notAfter.value.getTime() < Date.now()
     report.certFingerprintSha256 = await certFingerprint(signerCert)
-    // Campos del esquema ecuatoriano (cargo, razón social, RUC empresa).
-    report.position = readExtensionString(signerCert, OID_EC_CARGO)
-    report.companyName = readExtensionString(signerCert, OID_EC_RAZON_SOCIAL)
-    report.companyRuc = readExtensionString(signerCert, OID_EC_RUC)
+    report.position = ec.cargo
+    report.companyName = ec.companyName
+    report.companyRuc = ec.ruc
+    report.personType = type
+    report.personTypeLabel = label
   }
   report.rootCa = findRootName(certs, signerCert)
   report.signingTime = readSigningTime(signedData) ?? dict.signingTimeM
@@ -230,18 +232,30 @@ function splitIdFromName(cn: string): { name: string; idFromCn?: string } {
   return { name: cn.trim() }
 }
 
-/** Lee el valor (string) de una extensión de certificado por su OID. */
-function readExtensionString(cert: pkijs.Certificate, oid: string): string | undefined {
-  const ext = cert.extensions?.find((e) => e.extnID === oid)
-  if (!ext) return undefined
-  try {
-    const parsed = asn1js.fromBER(ext.extnValue.valueBlock.valueHexView)
-    const value = (parsed.result as { valueBlock?: { value?: unknown } })?.valueBlock?.value
-    const str = typeof value === 'string' ? value.trim() : undefined
-    return str ? str : undefined
-  } catch {
-    return undefined
+/**
+ * Lee los campos del esquema ecuatoriano detectando el arco dinámicamente
+ * (1.3.6.1.4.1.<PEN>.3.N), válido para cualquier AC acreditada.
+ */
+function readEcFields(cert: pkijs.Certificate): EcFields {
+  const fields: EcFields = {}
+  for (const ext of cert.extensions ?? []) {
+    const n = ecFieldNumber(ext.extnID)
+    if (n === null) continue
+    let value: string | undefined
+    try {
+      const parsed = asn1js.fromBER(ext.extnValue.valueBlock.valueHexView)
+      const v = (parsed.result as { valueBlock?: { value?: unknown } })?.valueBlock?.value
+      value = typeof v === 'string' ? v.trim() || undefined : undefined
+    } catch {
+      value = undefined
+    }
+    if (!value) continue
+    if (n === EC_FIELD.cedula) fields.cedula = value
+    else if (n === EC_FIELD.cargo) fields.cargo = value
+    else if (n === EC_FIELD.razonSocial) fields.companyName = value
+    else if (n === EC_FIELD.ruc) fields.ruc = value
   }
+  return fields
 }
 
 function readName(rdn: pkijs.RelativeDistinguishedNames, oid: string): string {

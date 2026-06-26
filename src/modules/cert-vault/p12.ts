@@ -1,5 +1,12 @@
 import forge from 'node-forge'
 import { binaryStringToBytes, bytesToBinaryString } from '../../lib/bytes'
+import {
+  classifyPerson,
+  EC_FIELD,
+  ecFieldNumber,
+  type EcFields,
+  type PersonType,
+} from '../../lib/ecuador-cert'
 
 export interface ParsedP12 {
   /** Clave privada en DER PKCS#8, lista para importar a WebCrypto. */
@@ -26,15 +33,12 @@ export interface CertSubject {
   position?: string
   /** Razón social de la empresa representada. */
   companyName?: string
-  /** RUC de la empresa representada. */
+  /** RUC de la empresa (jurídica) o personal (natural con RUC). */
   companyRuc?: string
+  /** Tipo de firmante: persona natural / natural con RUC / jurídica. */
+  personType?: PersonType
+  personTypeLabel?: string
 }
-
-// Extensiones del esquema ecuatoriano (arco 1.3.6.1.4.1.37746.3.*).
-const OID_EC_CEDULA = '1.3.6.1.4.1.37746.3.1'
-const OID_EC_CARGO = '1.3.6.1.4.1.37746.3.5'
-const OID_EC_RAZON_SOCIAL = '1.3.6.1.4.1.37746.3.10'
-const OID_EC_RUC = '1.3.6.1.4.1.37746.3.11'
 
 export class P12ParseError extends Error {}
 
@@ -167,18 +171,21 @@ function readSubject(cert: forge.pki.Certificate): CertSubject {
     return typeof a?.value === 'string' ? decodeDirectoryString(a.value, a.valueTagClass) : undefined
   }
   const serialNumber = get('serialNumber', '2.5.4.5')
-  // En certificados ecuatorianos la cédula real está en la extensión .3.1; el
-  // serialNumber del subject puede ser un UUID o traer un sufijo. Preferimos la extensión.
-  const cedulaExt = readEcExtension(cert, OID_EC_CEDULA)
+  // La cédula y datos del firmante están en extensiones del esquema EC (.3.N); el
+  // serialNumber del subject puede ser un UUID o traer sufijo. Preferimos la extensión.
+  const ec = readEcFields(cert)
+  const { type, label } = classifyPerson(ec)
   const { name } = splitLeadingId(get('CN', 'commonName', '2.5.4.3') ?? 'Desconocido')
   return {
     commonName: name,
     organization: get('O', 'organizationName', '2.5.4.10'),
     serialNumber,
-    identification: cedulaExt || serialNumber,
-    position: readEcExtension(cert, OID_EC_CARGO),
-    companyName: readEcExtension(cert, OID_EC_RAZON_SOCIAL),
-    companyRuc: readEcExtension(cert, OID_EC_RUC),
+    identification: ec.cedula || serialNumber,
+    position: ec.cargo,
+    companyName: ec.companyName,
+    companyRuc: ec.ruc,
+    personType: type,
+    personTypeLabel: label,
   }
 }
 
@@ -188,20 +195,32 @@ function splitLeadingId(cn: string): { name: string } {
   return { name: m ? m[1].trim() : cn.trim() }
 }
 
-/** Lee el valor (string) de una extensión propietaria del certificado por su OID. */
-function readEcExtension(cert: forge.pki.Certificate, oid: string): string | undefined {
-  const exts = cert.extensions as Array<{ id?: string; value?: unknown }>
-  const ext = exts?.find((e) => e.id === oid)
-  if (!ext || typeof ext.value !== 'string') return undefined
-  try {
-    const asn1 = forge.asn1.fromDer(ext.value)
-    const raw = typeof asn1.value === 'string' ? asn1.value : undefined
-    if (!raw) return undefined
-    const decoded = decodeDirectoryString(raw, asn1.type as number).trim()
-    return decoded || undefined
-  } catch {
-    return undefined
+/**
+ * Lee los campos del esquema ecuatoriano detectando el arco dinámicamente
+ * (1.3.6.1.4.1.<PEN>.3.N), válido para cualquier AC acreditada.
+ */
+function readEcFields(cert: forge.pki.Certificate): EcFields {
+  const exts = (cert.extensions ?? []) as Array<{ id?: string; value?: unknown }>
+  const fields: EcFields = {}
+  for (const ext of exts) {
+    if (!ext.id || typeof ext.value !== 'string') continue
+    const n = ecFieldNumber(ext.id)
+    if (n === null) continue
+    let value: string | undefined
+    try {
+      const asn1 = forge.asn1.fromDer(ext.value)
+      const raw = typeof asn1.value === 'string' ? asn1.value : undefined
+      value = raw ? decodeDirectoryString(raw, asn1.type as number).trim() || undefined : undefined
+    } catch {
+      value = undefined
+    }
+    if (!value) continue
+    if (n === EC_FIELD.cedula) fields.cedula = value
+    else if (n === EC_FIELD.cargo) fields.cargo = value
+    else if (n === EC_FIELD.razonSocial) fields.companyName = value
+    else if (n === EC_FIELD.ruc) fields.ruc = value
   }
+  return fields
 }
 
 /**
