@@ -47,16 +47,14 @@ export async function drawSignatureAppearance(
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
 
-  // Recuadro.
+  // Recuadro: sin relleno (fondo transparente), borde fino para delimitar.
   page.drawRectangle({
     x: pos.x,
     y: pos.y,
     width: pos.width,
     height: pos.height,
-    borderColor: rgb(0.15, 0.39, 0.92),
-    borderWidth: 1,
-    color: rgb(0.97, 0.98, 1),
-    opacity: 0.95,
+    borderColor: rgb(0.7, 0.74, 0.8),
+    borderWidth: 0.5,
   })
 
   const pad = 5
@@ -75,17 +73,17 @@ export async function drawSignatureAppearance(
 
   const textWidth = pos.x + pos.width - pad - textX
 
-  // Líneas de texto.
-  const lines: Line[] = [{ text: appearance.name, size: 7, bold: true }]
+  // Líneas de texto (tamaños pequeños para un sello discreto).
+  const lines: Line[] = [{ text: appearance.name, size: 5, bold: true }]
   if (appearance.isCompany) {
-    if (appearance.companyName) lines.push({ text: appearance.companyName, size: 6.5, bold: true })
-    if (appearance.position) lines.push({ text: appearance.position, size: 6 })
-    if (appearance.companyRuc) lines.push({ text: `RUC ${appearance.companyRuc}`, size: 6 })
+    if (appearance.companyName) lines.push({ text: appearance.companyName, size: 4.5, bold: true })
+    if (appearance.position) lines.push({ text: appearance.position, size: 4.5 })
+    if (appearance.companyRuc) lines.push({ text: `RUC ${appearance.companyRuc}`, size: 4.5 })
   } else if (appearance.identification) {
-    lines.push({ text: `CI ${appearance.identification}`, size: 6 })
+    lines.push({ text: `CI ${appearance.identification}`, size: 4.5 })
   }
-  lines.push({ text: formatDate(signingTime), size: 6 })
-  lines.push({ text: 'Firmado con firmaok.com.ec', size: 5.5, faded: true })
+  lines.push({ text: formatDate(signingTime), size: 4.5 })
+  lines.push({ text: 'Firmado con firmaok.com.ec', size: 4, faded: true })
 
   // Colocación de arriba hacia abajo, con interlineado proporcional al alto disponible.
   const totalSize = lines.reduce((n, l) => n + l.size, 0)
@@ -103,10 +101,10 @@ export async function drawSignatureAppearance(
 
 async function generateQrPng(text: string): Promise<Uint8Array> {
   const dataUrl = await QRCode.toDataURL(text, {
-    margin: 1,
+    margin: 0, // sin zona de silencio ("filos")
     width: 220,
     errorCorrectionLevel: 'M',
-    color: { dark: '#0f172aff', light: '#ffffffff' },
+    color: { dark: '#0f172aff', light: '#00000000' }, // fondo transparente
   })
   return base64ToBytes(dataUrl.split(',')[1] ?? '')
 }
