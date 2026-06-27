@@ -15,6 +15,7 @@ import { Alert, Button, Card, EmptyState, Input, Spinner } from '../components/u
 import { downloadBytes, readFileBytes } from '../lib/file'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
 import { signPdf, type SignaturePosition } from '../modules/pdf-signer'
+import { clearSharedPrf } from '../modules/cert-vault/vault'
 import type { useVault } from '../modules/cert-vault/useVault'
 
 type Vault = ReturnType<typeof useVault>
@@ -76,6 +77,13 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
     } finally {
       setBusy(false)
     }
+  }
+
+  async function handleRecover() {
+    if (!selected) return
+    await vault.deleteCertificate(selected.id)
+    await clearSharedPrf()
+    onGoToCert()
   }
 
   async function handlePickPdf(file: File) {
@@ -143,6 +151,16 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
             {busy ? <Spinner className="h-4 w-4" /> : <Lock className="h-4 w-4" strokeWidth={2} />}
             {busy ? 'Desbloqueando…' : 'Desbloquear'}
           </Button>
+
+          {selected?.method === 'webauthn-prf' && (
+            <p className="border-t border-slate-200/70 pt-3 text-center text-xs text-slate-500 dark:border-slate-800">
+              ¿La biometría no funciona (gestor de contraseñas, app instalada…)?{' '}
+              <button onClick={handleRecover} className="font-medium text-brand-600 underline">
+                Borra este certificado y reimpórtalo con contraseña maestra
+              </button>
+              .
+            </p>
+          )}
         </Card>
       </div>
     )

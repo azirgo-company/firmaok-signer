@@ -297,6 +297,11 @@ export async function deleteCertificate(id: string): Promise<void> {
   await (await db()).delete(STORE, id)
 }
 
+/** Olvida la passkey biométrica compartida (para reintentar biometría desde cero). */
+export async function clearSharedPrf(): Promise<void> {
+  await (await db()).delete(META_STORE, SHARED_PRF_KEY)
+}
+
 export async function wipeAll(): Promise<void> {
   const dbi = await db()
   await dbi.clear(STORE)
