@@ -7,8 +7,8 @@ import { Skeleton } from '../../components/ui'
 import type { SignaturePosition } from '../pdf-signer'
 
 // Tamaño FIJO del sello en puntos PDF (no redimensionable; solo se arrastra).
-const SIG_W_PT = 200
-const SIG_H_PT = 64
+const SIG_W_PT = 175
+const SIG_H_PT = 48
 
 export interface SignaturePreview {
   name: string

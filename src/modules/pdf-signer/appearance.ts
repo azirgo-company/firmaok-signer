@@ -47,55 +47,47 @@ export async function drawSignatureAppearance(
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
 
-  // Recuadro: sin relleno (fondo transparente), borde fino para delimitar.
-  page.drawRectangle({
-    x: pos.x,
-    y: pos.y,
-    width: pos.width,
-    height: pos.height,
-    borderColor: rgb(0.7, 0.74, 0.8),
-    borderWidth: 0.5,
-  })
+  // Sin recuadro ni fondo: solo QR + texto, transparente sobre el documento.
+  const pad = 3
 
-  const pad = 5
-
-  // QR a la izquierda (cuadrado, alto del recuadro menos padding).
-  const qrSize = Math.max(28, pos.height - pad * 2)
+  // QR a la izquierda, pequeño y centrado verticalmente.
+  const qrSize = Math.min(pos.height - pad * 2, 42)
   let textX = pos.x + pad
   try {
     const qrPng = await generateQrPng(VERIFY_URL)
     const qr = await pdfDoc.embedPng(qrPng)
-    page.drawImage(qr, { x: pos.x + pad, y: pos.y + pad, width: qrSize, height: qrSize })
-    textX = pos.x + pad + qrSize + pad
+    const qrY = pos.y + (pos.height - qrSize) / 2
+    page.drawImage(qr, { x: pos.x + pad, y: qrY, width: qrSize, height: qrSize })
+    textX = pos.x + pad + qrSize + 4
   } catch {
     // Si el QR falla, seguimos solo con texto.
   }
 
   const textWidth = pos.x + pos.width - pad - textX
 
-  // Líneas de texto (tamaños pequeños para un sello discreto).
-  const lines: Line[] = [{ text: appearance.name, size: 5, bold: true }]
+  // Líneas de texto: muy pequeñas y ajustadas.
+  const lines: Line[] = [{ text: appearance.name, size: 4, bold: true }]
   if (appearance.isCompany) {
-    if (appearance.companyName) lines.push({ text: appearance.companyName, size: 4.5, bold: true })
-    if (appearance.position) lines.push({ text: appearance.position, size: 4.5 })
-    if (appearance.companyRuc) lines.push({ text: `RUC ${appearance.companyRuc}`, size: 4.5 })
+    if (appearance.companyName) lines.push({ text: appearance.companyName, size: 3.6, bold: true })
+    if (appearance.position) lines.push({ text: appearance.position, size: 3.4 })
+    if (appearance.companyRuc) lines.push({ text: `RUC ${appearance.companyRuc}`, size: 3.4 })
   } else if (appearance.identification) {
-    lines.push({ text: `CI ${appearance.identification}`, size: 4.5 })
+    lines.push({ text: `CI ${appearance.identification}`, size: 3.4 })
   }
-  lines.push({ text: formatDate(signingTime), size: 4.5 })
-  lines.push({ text: 'Firmado con firmaok.com.ec', size: 4, faded: true })
+  lines.push({ text: formatDate(signingTime), size: 3.4 })
+  lines.push({ text: 'Firmado con firmaok.com.ec', size: 3.1, faded: true })
 
-  // Colocación de arriba hacia abajo, con interlineado proporcional al alto disponible.
-  const totalSize = lines.reduce((n, l) => n + l.size, 0)
-  const gap = Math.max(1, (pos.height - pad * 2 - totalSize) / lines.length)
-  let cursorY = pos.y + pos.height - pad
+  // Bloque de texto compacto (interlineado fijo) y centrado verticalmente.
+  const lead = 1.1
+  const blockH = lines.reduce((n, l) => n + l.size + lead, 0) - lead
+  let cursorY = pos.y + (pos.height + blockH) / 2
   for (const line of lines) {
     cursorY -= line.size
     const f = line.bold ? fontBold : font
     const color = line.faded ? rgb(0.45, 0.5, 0.58) : rgb(0.1, 0.12, 0.16)
     const text = truncate(sanitizeForPdf(line.text), textWidth, f, line.size)
     drawSafeText(page, text, { x: textX, y: cursorY, size: line.size, font: f, color })
-    cursorY -= gap
+    cursorY -= lead
   }
 }
 
