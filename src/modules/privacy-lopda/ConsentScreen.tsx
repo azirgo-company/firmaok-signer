@@ -14,7 +14,7 @@ const POINTS = [
   {
     icon: Lock,
     title: 'Cifrado en reposo',
-    body: 'La clave se guarda con AES-256-GCM y se protege con tu biometría o un PIN. Se importa como no extraíble.',
+    body: 'La clave se guarda con AES-256-GCM, protegida por tu contraseña maestra (Argon2id). Se importa como no extraíble.',
   },
   {
     icon: ShieldCheck,

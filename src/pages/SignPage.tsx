@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   UploadCloud,
-  Lock,
-  Fingerprint,
+  KeyRound,
   Download,
   RotateCcw,
   FileText,
@@ -15,7 +14,6 @@ import { Alert, Button, Card, EmptyState, Input, Spinner } from '../components/u
 import { downloadBytes, readFileBytes } from '../lib/file'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
 import { signPdf, type SignaturePosition } from '../modules/pdf-signer'
-import { clearSharedPrf } from '../modules/cert-vault/vault'
 import type { useVault } from '../modules/cert-vault/useVault'
 
 type Vault = ReturnType<typeof useVault>
@@ -70,20 +68,13 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
     setError(null)
     setBusy(true)
     try {
-      await vault.unlock(selected.id, selected.method === 'pin' ? pin : undefined)
+      await vault.unlock(selected.id, pin)
       setPin('')
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setBusy(false)
     }
-  }
-
-  async function handleRecover() {
-    if (!selected) return
-    await vault.deleteCertificate(selected.id)
-    await clearSharedPrf()
-    onGoToCert()
   }
 
   async function handlePickPdf(file: File) {
@@ -126,41 +117,24 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
         <Card className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-500/10 text-brand-600">
-              {selected?.method === 'pin' ? (
-                <Lock className="h-5 w-5" strokeWidth={2} />
-              ) : (
-                <Fingerprint className="h-5 w-5" strokeWidth={2} />
-              )}
+              <KeyRound className="h-5 w-5" strokeWidth={2} />
             </span>
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              {selected?.method === 'pin'
-                ? 'Ingresa tu contraseña maestra para usar este certificado.'
-                : 'Confirma con tu biometría para usar este certificado.'}
+              Ingresa tu contraseña maestra para usar este certificado.
             </p>
           </div>
-          {selected?.method === 'pin' && (
-            <Input
-              type="password"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              placeholder="Contraseña maestra"
-            />
-          )}
+          <Input
+            type="password"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            placeholder="Contraseña maestra"
+            onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+          />
           {error && <Alert kind="error">{error}</Alert>}
-          <Button onClick={handleUnlock} disabled={busy}>
-            {busy ? <Spinner className="h-4 w-4" /> : <Lock className="h-4 w-4" strokeWidth={2} />}
+          <Button onClick={handleUnlock} disabled={busy || !pin}>
+            {busy ? <Spinner className="h-4 w-4" /> : <KeyRound className="h-4 w-4" strokeWidth={2} />}
             {busy ? 'Desbloqueando…' : 'Desbloquear'}
           </Button>
-
-          {selected?.method === 'webauthn-prf' && (
-            <p className="border-t border-slate-200/70 pt-3 text-center text-xs text-slate-500 dark:border-slate-800">
-              ¿La biometría no funciona (gestor de contraseñas, app instalada…)?{' '}
-              <button onClick={handleRecover} className="font-medium text-brand-600 underline">
-                Borra este certificado y reimpórtalo con contraseña maestra
-              </button>
-              .
-            </p>
-          )}
         </Card>
       </div>
     )
@@ -269,10 +243,7 @@ function CertSelector({
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{c.label}</span>
-                <span className="block text-xs text-slate-500">
-                  {c.method === 'webauthn-prf' ? 'Biometría' : 'Contraseña maestra'}
-                  {c.expired && ' · vencido'}
-                </span>
+                {c.expired && <span className="block text-xs text-rose-500">Vencido</span>}
               </span>
               {active && <Check className="h-4 w-4 shrink-0 text-brand-600" strokeWidth={2.5} />}
             </button>

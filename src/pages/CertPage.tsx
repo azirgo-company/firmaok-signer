@@ -1,7 +1,5 @@
 import { useState } from 'react'
 import {
-  Fingerprint,
-  Lock,
   ShieldCheck,
   Trash2,
   UploadCloud,
@@ -11,16 +9,13 @@ import {
   Plus,
   ArrowLeft,
   ChevronDown,
+  KeyRound,
+  AlertTriangle,
 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Field, Input, Spinner } from '../components/ui'
 import { readFileBytes } from '../lib/file'
 import { formatDate } from '../lib/date'
-import {
-  isWebAuthnPrfSupported,
-  PrfUnsupportedError,
-  type ProtectionMethod,
-} from '../modules/cert-vault/key-protection'
-import type { CertSummary } from '../modules/cert-vault/vault'
+import { MASTER_MIN_LENGTH, type CertSummary } from '../modules/cert-vault/vault'
 import type { useVault } from '../modules/cert-vault/useVault'
 
 type Vault = ReturnType<typeof useVault>
@@ -48,6 +43,21 @@ export function CertPage({ vault }: { vault: Vault }) {
   return <CertList vault={vault} onImportAnother={() => setImporting(true)} />
 }
 
+// ---------- Medidor de fortaleza ----------
+
+function passwordStrength(pw: string): { score: number; label: string; color: string } {
+  let s = 0
+  if (pw.length >= MASTER_MIN_LENGTH) s++
+  if (pw.length >= 16) s++
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++
+  if (/\d/.test(pw) || /[^a-zA-Z0-9]/.test(pw)) s++
+  if (/\s/.test(pw) && pw.length >= 16) s = Math.max(s, 3) // frase larga
+  s = Math.min(s, 4)
+  const labels = ['Muy débil', 'Débil', 'Aceptable', 'Buena', 'Fuerte']
+  const colors = ['bg-rose-500', 'bg-orange-500', 'bg-amber-500', 'bg-lime-500', 'bg-emerald-500']
+  return { score: s, label: labels[s], color: colors[s] }
+}
+
 function ImportCert({
   vault,
   canCancel,
@@ -57,15 +67,16 @@ function ImportCert({
   canCancel: boolean
   onDone: () => void
 }) {
-  const prfSupported = isWebAuthnPrfSupported()
+  const firstTime = !vault.hasMaster
   const [file, setFile] = useState<File | null>(null)
-  const [password, setPassword] = useState('')
-  const [method, setMethod] = useState<ProtectionMethod>(prfSupported ? 'webauthn-prf' : 'pin')
-  const [pin, setPin] = useState('')
+  const [certPassword, setCertPassword] = useState('')
+  const [master, setMaster] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const pinTooShort = method === 'pin' && pin.length > 0 && pin.length < 10
+  const strength = passwordStrength(master)
+  const tooShort = firstTime && master.length > 0 && master.length < MASTER_MIN_LENGTH
+  const canSubmit = !!file && master.length >= (firstTime ? MASTER_MIN_LENGTH : 1)
 
   async function handleImport() {
     if (!file) return
@@ -74,22 +85,12 @@ function ImportCert({
     try {
       const bytes = await readFileBytes(file)
       await vault.importCertificate(bytes, {
-        password: password || undefined,
-        method,
-        pin: method === 'pin' ? pin : undefined,
+        certPassword: certPassword || undefined,
+        masterPassword: master,
       })
       onDone()
     } catch (e) {
-      if (e instanceof PrfUnsupportedError || (e as Error)?.name === 'PrfUnsupportedError') {
-        // Biometría no disponible (gestor externo como Dashlane, o Touch ID local sin PRF):
-        // cambiamos a contraseña maestra automáticamente.
-        setMethod('pin')
-        setError(
-          'No se pudo usar biometría: parece que un gestor externo (p. ej. Dashlane) interceptó, o tu Touch ID local no soporta el cifrado PRF. Crea una contraseña maestra para continuar.',
-        )
-      } else {
-        setError((e as Error).message)
-      }
+      setError((e as Error).message)
     } finally {
       setBusy(false)
     }
@@ -132,68 +133,62 @@ function ImportCert({
           <Field label="Contraseña del certificado" hint="Opcional — solo si tu .p12 la tiene.">
             <Input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={certPassword}
+              onChange={(e) => setCertPassword(e.target.value)}
               placeholder="••••••••"
             />
           </Field>
 
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Proteger en este dispositivo con
-            </span>
-            <MethodOption
-              active={method === 'webauthn-prf'}
-              disabled={!prfSupported}
-              onClick={() => prfSupported && setMethod('webauthn-prf')}
-              icon={<Fingerprint className="h-5 w-5" strokeWidth={2} />}
-              title="Biometría / passkey"
-              subtitle={
-                prfSupported
-                  ? 'Recomendado · la opción más segura (ligada al hardware)'
-                  : 'No disponible en este navegador'
-              }
+          <Field
+            label={firstTime ? 'Crea tu contraseña maestra' : 'Tu contraseña maestra'}
+            hint={
+              firstTime
+                ? `Protege todos tus certificados. Usa una frase larga; mínimo ${MASTER_MIN_LENGTH} caracteres.`
+                : 'La que usaste al guardar tu primer certificado.'
+            }
+          >
+            <Input
+              type="password"
+              value={master}
+              onChange={(e) => setMaster(e.target.value)}
+              placeholder={firstTime ? 'Una frase que solo tú conozcas' : 'Contraseña maestra'}
             />
-            <MethodOption
-              active={method === 'pin'}
-              onClick={() => setMethod('pin')}
-              icon={<Lock className="h-5 w-5" strokeWidth={2} />}
-              title="Contraseña maestra"
-              subtitle="Usa una frase larga; mínimo 10 caracteres"
-            />
-            {method === 'webauthn-prf' && (
-              <p className="px-1 text-xs text-slate-400">
-                Si en escritorio aparece tu gestor (Dashlane, 1Password…), cancélalo para usar Touch
-                ID / Windows Hello. Si no soporta biometría, cambiaremos a contraseña maestra.
-              </p>
-            )}
-          </div>
+          </Field>
 
-          {method === 'pin' && (
-            <Field
-              label="Contraseña maestra"
-              hint="Cuanto más larga, más segura. Mínimo 10 caracteres."
-            >
-              <Input
-                type="password"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                placeholder="Una frase que solo tú conozcas"
-              />
-            </Field>
+          {firstTime && master.length > 0 && (
+            <div className="-mt-2 flex flex-col gap-1">
+              <div className="flex h-1.5 gap-1">
+                {[0, 1, 2, 3].map((i) => (
+                  <span
+                    key={i}
+                    className={`h-full flex-1 rounded-full ${
+                      i < strength.score ? strength.color : 'bg-slate-200 dark:bg-slate-700'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-xs text-slate-400">Fortaleza: {strength.label}</span>
+            </div>
           )}
 
-          {pinTooShort && (
+          {firstTime && (
+            <Alert kind="info">
+              <span className="inline-flex items-start gap-1.5">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
+                Guárdala bien: <strong>no se puede recuperar</strong>. Si la olvidas, podrás volver a
+                importar tu .p12.
+              </span>
+            </Alert>
+          )}
+
+          {tooShort && (
             <p className="text-xs font-medium text-amber-600">
-              La contraseña maestra debe tener al menos 10 caracteres.
+              La contraseña maestra debe tener al menos {MASTER_MIN_LENGTH} caracteres.
             </p>
           )}
           {error && <Alert kind="error">{error}</Alert>}
 
-          <Button
-            onClick={handleImport}
-            disabled={!file || busy || (method === 'pin' && pin.length < 10)}
-          >
+          <Button onClick={handleImport} disabled={!canSubmit || busy}>
             {busy ? <Spinner className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" strokeWidth={2} />}
             {busy ? 'Importando…' : 'Importar y proteger'}
           </Button>
@@ -203,55 +198,13 @@ function ImportCert({
   )
 }
 
-function MethodOption({
-  active,
-  disabled,
-  onClick,
-  icon,
-  title,
-  subtitle,
-}: {
-  active: boolean
-  disabled?: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  title: string
-  subtitle: string
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors disabled:opacity-50 ${
-        active
-          ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10'
-          : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/50'
-      }`}
-    >
-      <span className={active ? 'text-brand-600' : 'text-slate-400'}>{icon}</span>
-      <span className="min-w-0">
-        <span className="block text-sm font-medium">{title}</span>
-        <span className="block truncate text-xs text-slate-500">{subtitle}</span>
-      </span>
-      <span
-        className={`ml-auto h-4 w-4 shrink-0 rounded-full border-2 ${
-          active ? 'border-brand-500 bg-brand-500' : 'border-slate-300 dark:border-slate-600'
-        }`}
-      />
-    </button>
-  )
-}
-
 function CertList({ vault, onImportAnother }: { vault: Vault; onImportAnother: () => void }) {
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-8">
       <header className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Mis certificados</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Guardados y cifrados en este dispositivo.
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Guardados y cifrados en este dispositivo.</p>
         </div>
         <Button onClick={onImportAnother}>
           <Plus className="h-4 w-4" strokeWidth={2} />
@@ -272,7 +225,7 @@ function CertList({ vault, onImportAnother }: { vault: Vault; onImportAnother: (
 }
 
 function CertCard({ cert, vault }: { cert: CertSummary; vault: Vault }) {
-  const [pin, setPin] = useState('')
+  const [master, setMaster] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -285,7 +238,8 @@ function CertCard({ cert, vault }: { cert: CertSummary; vault: Vault }) {
     setBusy(true)
     setError(null)
     try {
-      await vault.unlock(cert.id, cert.method === 'pin' ? pin : undefined)
+      await vault.unlock(cert.id, master)
+      setMaster('')
       setOpen(true)
     } catch (e) {
       setError((e as Error).message)
@@ -310,16 +264,15 @@ function CertCard({ cert, vault }: { cert: CertSummary; vault: Vault }) {
               </Badge>
             ) : (
               <Badge tone="neutral">
-                <Lock className="h-3 w-3" strokeWidth={2} />
+                <KeyRound className="h-3 w-3" strokeWidth={2} />
                 Bloqueado
               </Badge>
             )}
             {cert.expired && <Badge tone="danger">Vencido</Badge>}
           </div>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {cert.method === 'webauthn-prf' ? 'Biometría / passkey' : 'Contraseña maestra'}
-            {cert.validTo && ` · válido hasta ${formatDate(cert.validTo)}`}
-          </p>
+          {cert.validTo && (
+            <p className="mt-0.5 text-xs text-slate-500">válido hasta {formatDate(cert.validTo)}</p>
+          )}
 
           {u && (
             <dl className="mt-3 grid grid-cols-[100px_1fr] gap-y-1 text-sm">
@@ -352,22 +305,19 @@ function CertCard({ cert, vault }: { cert: CertSummary; vault: Vault }) {
         </div>
       </div>
 
-      {/* Desbloquear para ver detalles */}
       {!isUnlocked && (
         <div className="border-t border-slate-200/70 px-5 py-4 dark:border-slate-800">
           {open ? (
             <div className="flex flex-col gap-3">
-              {cert.method === 'pin' && (
-                <Input
-                  type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="Contraseña maestra"
-                />
-              )}
+              <Input
+                type="password"
+                value={master}
+                onChange={(e) => setMaster(e.target.value)}
+                placeholder="Contraseña maestra"
+              />
               {error && <Alert kind="error">{error}</Alert>}
               <div className="flex gap-2">
-                <Button onClick={handleUnlock} disabled={busy}>
+                <Button onClick={handleUnlock} disabled={busy || !master}>
                   {busy ? <Spinner className="h-4 w-4" /> : <Unlock className="h-4 w-4" strokeWidth={2} />}
                   {busy ? 'Desbloqueando…' : 'Desbloquear'}
                 </Button>
@@ -395,7 +345,6 @@ function CertCard({ cert, vault }: { cert: CertSummary; vault: Vault }) {
         </p>
       )}
 
-      {/* Borrar */}
       <div className="border-t border-slate-200/70 px-5 py-3 dark:border-slate-800">
         {confirmDelete ? (
           <div className="flex items-center gap-2">

@@ -43,10 +43,10 @@ export function LegalNotice({ onClose }: { onClose: () => void }) {
 
       <Section title="Seguridad">
         <p>
-          La clave privada se cifra con AES-256-GCM y se protege con biometría/passkey (ligada al
-          hardware) o una contraseña maestra derivada con Argon2id. Tras desbloquear, la clave de
-          firma es <strong>no extraíble</strong>. Aun así, la seguridad depende también de que tu
-          dispositivo no esté comprometido.
+          La clave privada se cifra con AES-256-GCM, protegida por una contraseña maestra derivada
+          con Argon2id (memory-hard). Tras desbloquear, la clave de firma es{' '}
+          <strong>no extraíble</strong>. La seguridad depende también de la fortaleza de tu
+          contraseña y de que tu dispositivo no esté comprometido.
         </p>
       </Section>
 

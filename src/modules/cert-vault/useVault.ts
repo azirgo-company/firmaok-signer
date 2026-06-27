@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   deleteCertificate,
+  hasMasterPassword,
   importP12,
   listCertificates,
   unlockVault,
@@ -13,6 +14,8 @@ export interface VaultState {
   loading: boolean
   /** Certificados guardados (resumen visible sin desbloquear). */
   certificates: CertSummary[]
+  /** Ya existe una contraseña maestra configurada. */
+  hasMaster: boolean
   /** Certificado desbloqueado en la sesión actual (solo memoria). */
   unlocked: UnlockedVault | null
   /** Id del certificado activo/desbloqueado. */
@@ -23,13 +26,14 @@ export function useVault() {
   const [state, setState] = useState<VaultState>({
     loading: true,
     certificates: [],
+    hasMaster: false,
     unlocked: null,
     activeId: null,
   })
 
   const refresh = useCallback(async () => {
-    const certificates = await listCertificates()
-    setState((s) => ({ ...s, loading: false, certificates }))
+    const [certificates, hasMaster] = await Promise.all([listCertificates(), hasMasterPassword()])
+    setState((s) => ({ ...s, loading: false, certificates, hasMaster }))
   }, [])
 
   useEffect(() => {
@@ -38,15 +42,14 @@ export function useVault() {
 
   const importCertificate = useCallback(async (p12Bytes: Uint8Array, opts: ImportOptions) => {
     const { id, unlocked } = await importP12(p12Bytes, opts)
-    const certificates = await listCertificates()
-    setState((s) => ({ ...s, certificates, unlocked, activeId: id }))
+    const [certificates, hasMaster] = await Promise.all([listCertificates(), hasMasterPassword()])
+    setState((s) => ({ ...s, certificates, hasMaster, unlocked, activeId: id }))
     return unlocked
   }, [])
 
-  const unlock = useCallback(async (id: string, pin?: string) => {
-    const { id: finalId, unlocked } = await unlockVault(id, pin)
-    const certificates = await listCertificates()
-    setState((s) => ({ ...s, certificates, unlocked, activeId: finalId }))
+  const unlock = useCallback(async (id: string, masterPassword: string) => {
+    const { id: finalId, unlocked } = await unlockVault(id, masterPassword)
+    setState((s) => ({ ...s, unlocked, activeId: finalId }))
     return unlocked
   }, [])
 

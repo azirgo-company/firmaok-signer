@@ -4,23 +4,17 @@ import { parseP12, readSubjectFromDer, type CertSubject } from './p12'
 import {
   aesDecrypt,
   aesEncrypt,
-  createPrfCredential,
-  derivePinKey,
-  derivePinKeyPbkdf2,
-  derivePrfKey,
-  isWebAuthnPrfSupported,
+  deriveMasterKey,
   DEFAULT_ARGON_PARAMS,
   type ArgonParams,
   type EncryptedBlob,
-  type Kdf,
-  type ProtectionMethod,
 } from './key-protection'
 
 const DB_NAME = 'firmaok-vault'
 const STORE = 'vault' // certificados, keyed por id (huella)
-const META_STORE = 'meta' // datos a nivel de app (passkey PRF compartida)
-const LEGACY_KEY = 'default'
-const SHARED_PRF_KEY = 'shared-prf'
+const META_STORE = 'meta' // contraseña maestra (verificador)
+const MASTER_KEY = 'master'
+const MASTER_TOKEN = 'firmaok-master-v1'
 
 interface StoredEncryptedBlob {
   iv: string
@@ -31,15 +25,15 @@ interface VaultRecord {
   id: string // huella SHA-256 del cert hoja
   label: string // nombre del firmante (en claro, para la lista)
   validTo: string // ISO (en claro, para la lista)
-  method: ProtectionMethod
-  kdf?: Kdf // 'argon2id' | 'pbkdf2' (ausente = legacy pbkdf2)
-  vaultSalt: string
-  pinSalt?: string
-  argonParams?: ArgonParams
-  credentialId?: string
-  encKey: StoredEncryptedBlob // PKCS#8 cifrado
-  encMeta: StoredEncryptedBlob // metadatos completos cifrados (datos personales)
+  encKey: StoredEncryptedBlob // PKCS#8 cifrado con la clave maestra
+  encMeta: StoredEncryptedBlob // metadatos completos cifrados
   createdAt: number
+}
+
+interface MasterRecord {
+  salt: string
+  argonParams: ArgonParams
+  verifier: StoredEncryptedBlob // token cifrado, para validar la contraseña
 }
 
 interface CertMetadata {
@@ -50,12 +44,11 @@ interface CertMetadata {
   validTo: string
 }
 
-/** Resumen visible sin desbloquear (solo el nombre + vigencia + método). */
+/** Resumen visible sin desbloquear (solo el nombre + vigencia). */
 export interface CertSummary {
   id: string
   label: string
   validTo?: Date
-  method: ProtectionMethod
   expired: boolean
 }
 
@@ -72,15 +65,21 @@ export interface UnlockedVault {
 }
 
 export interface ImportOptions {
-  password?: string
-  method: ProtectionMethod
-  /** Contraseña maestra requerida cuando method === 'pin'. */
-  pin?: string
-  /** Parámetros de Argon2id (opcional; por defecto los seguros). Útil para tuning/tests. */
+  /** Contraseña del propio .p12 (opcional). */
+  certPassword?: string
+  /** Contraseña maestra de la app (única para todos los certificados). */
+  masterPassword: string
+  /** Argon2id params (opcional; por defecto los seguros). Útil para tests. */
   argonParams?: ArgonParams
 }
 
+export interface ImportResult {
+  id: string
+  unlocked: UnlockedVault
+}
+
 export class DuplicateCertError extends Error {}
+export const MASTER_MIN_LENGTH = 12
 
 function blobToStored(b: EncryptedBlob): StoredEncryptedBlob {
   return { iv: bytesToBase64(b.iv), ct: bytesToBase64(b.ciphertext) }
@@ -90,10 +89,13 @@ function storedToBlob(s: StoredEncryptedBlob): EncryptedBlob {
 }
 
 async function db(): Promise<IDBPDatabase> {
-  return openDB(DB_NAME, 2, {
+  return openDB(DB_NAME, 3, {
     upgrade(database) {
-      if (!database.objectStoreNames.contains(STORE)) database.createObjectStore(STORE)
-      if (!database.objectStoreNames.contains(META_STORE)) database.createObjectStore(META_STORE)
+      // El modelo de cifrado cambió (una sola contraseña maestra): empezamos limpio.
+      if (database.objectStoreNames.contains(STORE)) database.deleteObjectStore(STORE)
+      if (database.objectStoreNames.contains(META_STORE)) database.deleteObjectStore(META_STORE)
+      database.createObjectStore(STORE)
+      database.createObjectStore(META_STORE)
     },
   })
 }
@@ -103,48 +105,72 @@ async function fingerprint(leafCertDer: Uint8Array): Promise<string> {
   return bytesToHex(h)
 }
 
+// ---------- Contraseña maestra ----------
+
+export async function hasMasterPassword(): Promise<boolean> {
+  return Boolean(await (await db()).get(META_STORE, MASTER_KEY))
+}
+
+/**
+ * Deriva (y valida) la clave maestra. Si no existe, la crea (la contraseña debe
+ * tener al menos MASTER_MIN_LENGTH). Si existe, verifica la contraseña.
+ */
+async function getMasterKey(
+  password: string,
+  argonParams: ArgonParams = DEFAULT_ARGON_PARAMS,
+): Promise<CryptoKey> {
+  const dbi = await db()
+  const meta = (await dbi.get(META_STORE, MASTER_KEY)) as MasterRecord | undefined
+
+  if (meta) {
+    const key = await deriveMasterKey(password, base64ToBytes(meta.salt), meta.argonParams)
+    try {
+      const tok = await aesDecrypt(key, storedToBlob(meta.verifier))
+      if (new TextDecoder().decode(tok) !== MASTER_TOKEN) throw new Error()
+    } catch {
+      throw new Error('Contraseña maestra incorrecta.')
+    }
+    return key
+  }
+
+  // Primera vez: crear la contraseña maestra.
+  if (password.length < MASTER_MIN_LENGTH) {
+    throw new Error(`La contraseña maestra debe tener al menos ${MASTER_MIN_LENGTH} caracteres.`)
+  }
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const key = await deriveMasterKey(password, salt, argonParams)
+  const verifier = await aesEncrypt(key, new TextEncoder().encode(MASTER_TOKEN))
+  await dbi.put(
+    META_STORE,
+    { salt: bytesToBase64(salt), argonParams, verifier: blobToStored(verifier) },
+    MASTER_KEY,
+  )
+  return key
+}
+
 // ---------- Listado ----------
 
 export async function listCertificates(): Promise<CertSummary[]> {
-  const dbi = await db()
-  const [keys, values] = await Promise.all([dbi.getAllKeys(STORE), dbi.getAll(STORE)])
+  const all = (await (await db()).getAll(STORE)) as VaultRecord[]
   const now = Date.now()
-  const out: CertSummary[] = []
-  for (let i = 0; i < values.length; i++) {
-    const rec = values[i] as VaultRecord
-    const key = String(keys[i])
-    if (rec.id && rec.label) {
-      const validTo = rec.validTo ? new Date(rec.validTo) : undefined
-      out.push({
-        id: rec.id,
-        label: rec.label,
+  return all
+    .filter((r) => r.id && r.label)
+    .map((r) => {
+      const validTo = r.validTo ? new Date(r.validTo) : undefined
+      return {
+        id: r.id,
+        label: r.label,
         validTo,
-        method: rec.method,
         expired: validTo ? validTo.getTime() < now : false,
-      })
-    } else {
-      // Registro legacy (formato antiguo): sin nombre en claro hasta desbloquear.
-      out.push({
-        id: LEGACY_KEY,
-        label: 'Certificado guardado',
-        method: (rec.method as ProtectionMethod) ?? 'pin',
-        expired: false,
-      })
-      void key
-    }
-  }
-  return out.sort((a, b) => a.label.localeCompare(b.label))
+      }
+    })
+    .sort((a, b) => a.label.localeCompare(b.label))
 }
 
 // ---------- Importar ----------
 
-export interface ImportResult {
-  id: string
-  unlocked: UnlockedVault
-}
-
 export async function importP12(p12Bytes: Uint8Array, opts: ImportOptions): Promise<ImportResult> {
-  const parsed = parseP12(p12Bytes, opts.password ?? '')
+  const parsed = parseP12(p12Bytes, opts.certPassword ?? '')
   const id = await fingerprint(parsed.leafCertDer)
 
   const dbi = await db()
@@ -152,45 +178,7 @@ export async function importP12(p12Bytes: Uint8Array, opts: ImportOptions): Prom
     throw new DuplicateCertError('Este certificado ya está importado.')
   }
 
-  const vaultSalt = crypto.getRandomValues(new Uint8Array(16))
-  let protectionKey: CryptoKey
-  let pinSalt: string | undefined
-  let credentialId: string | undefined
-  let argonParams: ArgonParams | undefined
-  let kdf: Kdf
-
-  if (opts.method === 'webauthn-prf') {
-    if (!isWebAuthnPrfSupported()) {
-      throw new Error('Este navegador no soporta biometría (WebAuthn). Usa una contraseña maestra.')
-    }
-    // Reutiliza una passkey PRF compartida; la guarda SOLO tras un derive exitoso
-    // (si PRF falla por un gestor externo, no deja un registro inservible).
-    const existing = (await dbi.get(META_STORE, SHARED_PRF_KEY)) as
-      | { credentialId: string }
-      | undefined
-    let credBytes: Uint8Array
-    let isNew = false
-    if (existing?.credentialId) {
-      credBytes = base64ToBytes(existing.credentialId)
-    } else {
-      const created = await createPrfCredential()
-      credBytes = created.credentialId
-      isNew = true
-    }
-    protectionKey = await derivePrfKey(credBytes, vaultSalt) // valida PRF con un get real
-    credentialId = bytesToBase64(credBytes)
-    if (isNew) await dbi.put(META_STORE, { credentialId }, SHARED_PRF_KEY)
-    kdf = 'argon2id' // no aplica al PRF; marcamos formato nuevo
-  } else {
-    if (!opts.pin || opts.pin.length < 10) {
-      throw new Error('La contraseña maestra debe tener al menos 10 caracteres.')
-    }
-    const salt = crypto.getRandomValues(new Uint8Array(16))
-    pinSalt = bytesToBase64(salt)
-    argonParams = opts.argonParams ?? DEFAULT_ARGON_PARAMS
-    kdf = 'argon2id'
-    protectionKey = await derivePinKey(opts.pin, salt, argonParams)
-  }
+  const masterKey = await getMasterKey(opts.masterPassword, opts.argonParams)
 
   const metadata: CertMetadata = {
     leafCertDer: bytesToBase64(parsed.leafCertDer),
@@ -200,19 +188,13 @@ export async function importP12(p12Bytes: Uint8Array, opts: ImportOptions): Prom
     validTo: parsed.validTo.toISOString(),
   }
 
-  const encKey = await aesEncrypt(protectionKey, parsed.privateKeyPkcs8)
-  const encMeta = await aesEncrypt(protectionKey, new TextEncoder().encode(JSON.stringify(metadata)))
+  const encKey = await aesEncrypt(masterKey, parsed.privateKeyPkcs8)
+  const encMeta = await aesEncrypt(masterKey, new TextEncoder().encode(JSON.stringify(metadata)))
 
   const record: VaultRecord = {
     id,
     label: parsed.subject.commonName,
     validTo: parsed.validTo.toISOString(),
-    method: opts.method,
-    kdf,
-    vaultSalt: bytesToBase64(vaultSalt),
-    pinSalt,
-    argonParams,
-    credentialId,
     encKey: blobToStored(encKey),
     encMeta: blobToStored(encMeta),
     createdAt: Date.now(),
@@ -225,81 +207,25 @@ export async function importP12(p12Bytes: Uint8Array, opts: ImportOptions): Prom
 
 // ---------- Desbloquear ----------
 
-export async function unlockVault(id: string, pin?: string): Promise<ImportResult> {
+export async function unlockVault(id: string, masterPassword: string): Promise<ImportResult> {
   const dbi = await db()
   const record = (await dbi.get(STORE, id)) as VaultRecord | undefined
   if (!record) throw new Error('No se encontró el certificado.')
 
-  const protectionKey = await deriveProtectionKey(record, pin)
+  const masterKey = await getMasterKey(masterPassword) // valida la contraseña
 
-  let pkcs8: Uint8Array
-  let metadata: CertMetadata
-  try {
-    pkcs8 = await aesDecrypt(protectionKey, storedToBlob(record.encKey))
-    const metaBytes = await aesDecrypt(protectionKey, storedToBlob(record.encMeta))
-    metadata = JSON.parse(new TextDecoder().decode(metaBytes)) as CertMetadata
-  } catch {
-    throw new Error(
-      record.method === 'pin' ? 'Contraseña incorrecta.' : 'No se pudo descifrar el certificado.',
-    )
-  }
+  const pkcs8 = await aesDecrypt(masterKey, storedToBlob(record.encKey))
+  const metaBytes = await aesDecrypt(masterKey, storedToBlob(record.encMeta))
+  const metadata = JSON.parse(new TextDecoder().decode(metaBytes)) as CertMetadata
 
-  // Migración de registro legacy al formato nuevo (con nombre/vigencia en claro).
-  let finalId = id
-  if (id === LEGACY_KEY || !record.id || !record.label) {
-    finalId = await migrateLegacy(record, metadata)
-  }
-
-  const unlocked = await toUnlocked(finalId, pkcs8, metadata)
-  return { id: finalId, unlocked }
-}
-
-async function deriveProtectionKey(record: VaultRecord, pin?: string): Promise<CryptoKey> {
-  const vaultSalt = base64ToBytes(record.vaultSalt)
-  if (record.method === 'webauthn-prf') {
-    if (!record.credentialId) throw new Error('Registro biométrico dañado.')
-    return derivePrfKey(base64ToBytes(record.credentialId), vaultSalt)
-  }
-  if (!pin) throw new Error('Ingresa tu contraseña maestra.')
-  if (!record.pinSalt) throw new Error('Registro de contraseña dañado.')
-  const salt = base64ToBytes(record.pinSalt)
-  // Argon2id para registros nuevos; PBKDF2 para los legacy (sin kdf).
-  if (record.kdf === 'argon2id') {
-    return derivePinKey(pin, salt, record.argonParams ?? DEFAULT_ARGON_PARAMS)
-  }
-  return derivePinKeyPbkdf2(pin, salt)
-}
-
-/** Re-escribe un registro legacy con el formato nuevo (id por huella, nombre en claro). */
-async function migrateLegacy(record: VaultRecord, metadata: CertMetadata): Promise<string> {
-  try {
-    const leafCertDer = base64ToBytes(metadata.leafCertDer)
-    const id = await fingerprint(leafCertDer)
-    const subject = readSubjectFromDer(leafCertDer)
-    const dbi = await db()
-    const migrated: VaultRecord = {
-      ...record,
-      id,
-      label: subject.commonName,
-      validTo: metadata.validTo,
-    }
-    await dbi.put(STORE, migrated, id)
-    await dbi.delete(STORE, LEGACY_KEY)
-    return id
-  } catch {
-    return LEGACY_KEY
-  }
+  const unlocked = await toUnlocked(id, pkcs8, metadata)
+  return { id, unlocked }
 }
 
 // ---------- Borrar ----------
 
 export async function deleteCertificate(id: string): Promise<void> {
   await (await db()).delete(STORE, id)
-}
-
-/** Olvida la passkey biométrica compartida (para reintentar biometría desde cero). */
-export async function clearSharedPrf(): Promise<void> {
-  await (await db()).delete(META_STORE, SHARED_PRF_KEY)
 }
 
 export async function wipeAll(): Promise<void> {
@@ -323,7 +249,6 @@ async function toUnlocked(
     false,
     ['sign'],
   )
-  // Limpiamos la copia en claro de la clave en memoria lo antes posible.
   pkcs8.fill(0)
 
   const leafCertDer = base64ToBytes(metadata.leafCertDer)

@@ -9,14 +9,11 @@ import {
   listCertificates,
   unlockVault,
   deleteCertificate,
+  hasMasterPassword,
   wipeAll,
   DuplicateCertError,
   type ImportOptions,
 } from './vault'
-
-// Argon2id rápido para tests (la app usa los params seguros por defecto).
-const FAST: ArgonParams = { memorySize: 8192, iterations: 1, parallelism: 1 }
-const opts = (pin: string): ImportOptions => ({ password: 'x', method: 'pin', pin, argonParams: FAST })
 
 function makeP12(name: string, id: string): Uint8Array {
   const keys = forge.pki.rsa.generateKeyPair(1024)
@@ -36,42 +33,45 @@ function makeP12(name: string, id: string): Uint8Array {
   return binaryStringToBytes(forge.asn1.toDer(asn1).getBytes())
 }
 
-const PIN = 'contraseña-larga-1'
+// Argon2id rápido para tests (la app usa los params seguros por defecto).
+const FAST: ArgonParams = { memorySize: 8192, iterations: 1, parallelism: 1 }
+const MASTER = 'contraseña-maestra-larga'
+const opts = (master = MASTER): ImportOptions => ({ certPassword: 'x', masterPassword: master, argonParams: FAST })
 
-describe('vault multi-certificado (Argon2id)', () => {
+describe('vault con contraseña maestra única (Argon2id)', () => {
   beforeEach(async () => {
     await wipeAll()
   })
 
-  it('importa, lista por nombre y desbloquea por id (Argon2id)', async () => {
+  it('crea la maestra al primer import, lista y desbloquea por id', async () => {
+    expect(await hasMasterPassword()).toBe(false)
     const a = makeP12('ANA TORRES', '0102030405')
-    const { id, unlocked } = await importP12(a, opts(PIN))
+    const { id, unlocked } = await importP12(a, opts())
     expect(unlocked.subject.commonName).toBe('ANA TORRES')
+    expect(await hasMasterPassword()).toBe(true)
 
     const list = await listCertificates()
     expect(list).toHaveLength(1)
     expect(list[0].label).toBe('ANA TORRES')
-    expect(list[0].method).toBe('pin')
 
-    const re = await unlockVault(id, PIN)
+    const re = await unlockVault(id, MASTER)
     expect(re.unlocked.subject.commonName).toBe('ANA TORRES')
     expect(re.unlocked.signingKey.extractable).toBe(false)
   })
 
   it('rechaza reimportar el mismo certificado (dedup por huella)', async () => {
     const a = makeP12('ANA TORRES', '0102030405')
-    await importP12(a, opts(PIN))
-    await expect(importP12(a, opts(PIN))).rejects.toThrow(DuplicateCertError)
+    await importP12(a, opts())
+    await expect(importP12(a, opts())).rejects.toThrow(DuplicateCertError)
   })
 
-  it('soporta varios certificados y borrado individual', async () => {
+  it('varios certificados con la misma maestra; borrado individual', async () => {
     const a = makeP12('ANA TORRES', '0102030405')
     const b = makeP12('LUIS PEREZ', '0908070605')
-    const ra = await importP12(a, opts(PIN))
-    await importP12(b, opts(PIN))
+    const ra = await importP12(a, opts())
+    await importP12(b, opts())
 
     let list = await listCertificates()
-    expect(list).toHaveLength(2)
     expect(list.map((c) => c.label).sort()).toEqual(['ANA TORRES', 'LUIS PEREZ'])
 
     await deleteCertificate(ra.id)
@@ -80,11 +80,16 @@ describe('vault multi-certificado (Argon2id)', () => {
     expect(list[0].label).toBe('LUIS PEREZ')
   })
 
-  it('rechaza contraseña maestra incorrecta y la corta (<10)', async () => {
+  it('rechaza maestra incorrecta al desbloquear y al añadir otro', async () => {
     const a = makeP12('ANA TORRES', '0102030405')
-    const { id } = await importP12(a, opts(PIN))
-    await expect(unlockVault(id, 'otra-clave-larga')).rejects.toThrow(/incorrecta/i)
+    const { id } = await importP12(a, opts())
+    await expect(unlockVault(id, 'otra-clave-larga-distinta')).rejects.toThrow(/incorrecta/i)
     const b = makeP12('OTRO', '111')
-    await expect(importP12(b, opts('corta'))).rejects.toThrow(/10/)
+    await expect(importP12(b, opts('otra-clave-larga-distinta'))).rejects.toThrow(/incorrecta/i)
+  })
+
+  it('exige al menos 12 caracteres al crear la maestra', async () => {
+    const a = makeP12('ANA TORRES', '0102030405')
+    await expect(importP12(a, opts('corta'))).rejects.toThrow(/12/)
   })
 })
