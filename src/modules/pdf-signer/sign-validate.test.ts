@@ -126,4 +126,21 @@ describe('signPdf + validatePdf (end-to-end)', () => {
     expect(reports.length).toBeGreaterThanOrEqual(1)
     expect(reports[0].integrityValid).toBe(false)
   })
+
+  it('no permite firmar con un certificado vencido o aún no vigente', async () => {
+    const vault = await makeVault() // vigencia 2024-01-01 .. 2030-06-15
+    const pdf = await makeSamplePdf()
+    const base = {
+      pdfBytes: pdf,
+      vault,
+      appearance: { name: vault.subject.commonName },
+      position: { pageIndex: 0, x: 50, y: 50, width: 220, height: 70 },
+    }
+    await expect(
+      signPdf({ ...base, signingTime: new Date('2031-01-01T00:00:00Z') }),
+    ).rejects.toThrow(/vencido/i)
+    await expect(
+      signPdf({ ...base, signingTime: new Date('2023-01-01T00:00:00Z') }),
+    ).rejects.toThrow(/no es válido/i)
+  })
 })

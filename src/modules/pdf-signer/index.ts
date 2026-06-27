@@ -32,6 +32,15 @@ export interface SignPdfRequest {
  */
 export async function signPdf(req: SignPdfRequest): Promise<Uint8Array> {
   const signingTime = req.signingTime ?? new Date()
+
+  // No se permite firmar con un certificado fuera de su periodo de validez.
+  if (req.vault.validTo.getTime() < signingTime.getTime()) {
+    throw new Error('El certificado está vencido; no se puede usar para firmar.')
+  }
+  if (req.vault.validFrom.getTime() > signingTime.getTime()) {
+    throw new Error('El certificado aún no es válido (su vigencia no ha comenzado).')
+  }
+
   const pdfDoc = await PDFDocument.load(toArrayBuffer(req.pdfBytes))
 
   const pages = pdfDoc.getPages()

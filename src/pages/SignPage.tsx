@@ -10,8 +10,10 @@ import {
   ArrowRight,
   Check,
 } from 'lucide-react'
+import { CalendarX2 } from 'lucide-react'
 import { Alert, Badge, Button, Card, EmptyState, Input, Spinner } from '../components/ui'
 import { downloadBytes, readFileBytes } from '../lib/file'
+import { formatDate } from '../lib/date'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
 import { signPdf, type SignaturePosition } from '../modules/pdf-signer'
 import type { useVault } from '../modules/cert-vault/useVault'
@@ -36,6 +38,9 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
   const selected = certs.find((c) => c.id === selectedId) ?? null
   const ready = !!vault.unlocked && vault.activeId === selectedId
   const u = ready ? vault.unlocked : null
+  const now = Date.now()
+  const selectedExpired = !!selected?.expired
+  const unlockedInvalid = !!u && (u.validTo.getTime() < now || u.validFrom.getTime() > now)
   const signerAppearance = u
     ? {
         name: u.subject.commonName,
@@ -114,28 +119,54 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
 
         <CertSelector certs={certs} selectedId={selectedId} onSelect={setSelectedId} />
 
-        <Card className="flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-500/10 text-brand-600">
-              <KeyRound className="h-5 w-5" strokeWidth={2} />
-            </span>
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Ingresa tu contraseña maestra para usar este certificado.
-            </p>
-          </div>
-          <Input
-            type="password"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            placeholder="Contraseña maestra"
-            onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+        {selectedExpired ? (
+          <ExpiredCert
+            name={selected?.label ?? 'Este certificado'}
+            validTo={selected?.validTo}
+            onImport={onGoToCert}
           />
-          {error && <Alert kind="error">{error}</Alert>}
-          <Button onClick={handleUnlock} disabled={busy || !pin}>
-            {busy ? <Spinner className="h-4 w-4" /> : <KeyRound className="h-4 w-4" strokeWidth={2} />}
-            {busy ? 'Desbloqueando…' : 'Desbloquear'}
-          </Button>
-        </Card>
+        ) : (
+          <Card className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-500/10 text-brand-600">
+                <KeyRound className="h-5 w-5" strokeWidth={2} />
+              </span>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Ingresa tu contraseña maestra para usar este certificado.
+              </p>
+            </div>
+            <Input
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="Contraseña maestra"
+              onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+            />
+            {error && <Alert kind="error">{error}</Alert>}
+            <Button onClick={handleUnlock} disabled={busy || !pin}>
+              {busy ? <Spinner className="h-4 w-4" /> : <KeyRound className="h-4 w-4" strokeWidth={2} />}
+              {busy ? 'Desbloqueando…' : 'Desbloquear'}
+            </Button>
+          </Card>
+        )}
+      </div>
+    )
+  }
+
+  // Desbloqueado pero fuera de vigencia: no se permite firmar.
+  if (unlockedInvalid && u) {
+    return (
+      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-4 px-4 py-12">
+        <header className="text-center">
+          <h2 className="text-2xl font-semibold tracking-tight">Firmar PDF</h2>
+        </header>
+        <ExpiredCert
+          name={u.subject.commonName}
+          validTo={u.validTo}
+          notYetValid={u.validFrom.getTime() > now}
+          onImport={onGoToCert}
+          onChange={certs.length > 1 ? vault.lock : undefined}
+        />
       </div>
     )
   }
@@ -230,6 +261,54 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
         </div>
       )}
     </div>
+  )
+}
+
+function ExpiredCert({
+  name,
+  validTo,
+  notYetValid,
+  onImport,
+  onChange,
+}: {
+  name: string
+  validTo?: Date
+  notYetValid?: boolean
+  onImport: () => void
+  onChange?: () => void
+}) {
+  return (
+    <Card className="flex flex-col items-center gap-4 text-center">
+      <span className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-500/10 text-rose-600">
+        <CalendarX2 className="h-6 w-6" strokeWidth={2} />
+      </span>
+      <div>
+        <h3 className="text-lg font-semibold tracking-tight">
+          {notYetValid ? 'Certificado aún no vigente' : 'Certificado vencido'}
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">
+          <span className="font-medium text-slate-700 dark:text-slate-200">{name}</span>{' '}
+          {notYetValid
+            ? 'todavía no está dentro de su periodo de validez.'
+            : validTo
+              ? `venció el ${formatDate(validTo)}.`
+              : 'está fuera de su periodo de validez.'}{' '}
+          No se puede firmar con un certificado fuera de vigencia.
+        </p>
+      </div>
+      <div className="flex w-full flex-col gap-2">
+        <Button onClick={onImport} className="w-full justify-center">
+          <IdCard className="h-4 w-4" strokeWidth={2} />
+          Importar un certificado vigente
+        </Button>
+        {onChange && (
+          <Button variant="ghost" onClick={onChange} className="w-full justify-center">
+            <RotateCcw className="h-4 w-4" strokeWidth={2} />
+            Elegir otro certificado
+          </Button>
+        )}
+      </div>
+    </Card>
   )
 }
 
