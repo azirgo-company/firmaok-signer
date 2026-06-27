@@ -37,6 +37,16 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
   const selected = certs.find((c) => c.id === selectedId) ?? null
   const ready = !!vault.unlocked && vault.activeId === selectedId
   const u = ready ? vault.unlocked : null
+  const signerAppearance = u
+    ? {
+        name: u.subject.commonName,
+        identification: u.subject.identification,
+        isCompany: u.subject.personType === 'juridica',
+        companyName: u.subject.companyName,
+        position: u.subject.position,
+        companyRuc: u.subject.companyRuc,
+      }
+    : undefined
 
   if (!vault.hasCertificate) {
     return (
@@ -82,14 +92,7 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
       const signed = await signPdf({
         pdfBytes: pdf.bytes,
         vault: u,
-        appearance: {
-          name: u.subject.commonName,
-          identification: u.subject.identification,
-          isCompany: u.subject.personType === 'juridica',
-          companyName: u.subject.companyName,
-          position: u.subject.position,
-          companyRuc: u.subject.companyRuc,
-        },
+        appearance: signerAppearance ?? { name: u.subject.commonName },
         position,
       })
       downloadBytes(signed, pdf.name.replace(/\.pdf$/i, '') + '-firmado.pdf')
@@ -184,15 +187,7 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
             <PdfSignCanvas
               pdfBytes={pdf.bytes}
               onPositionChange={setPosition}
-              preview={{
-                name: u.subject.commonName,
-                subline:
-                  u.subject.personType === 'juridica'
-                    ? u.subject.companyName
-                    : u.subject.identification
-                      ? `CI ${u.subject.identification}`
-                      : undefined,
-              }}
+              preview={signerAppearance}
             />
           </Card>
 

@@ -1,25 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Rnd } from 'react-rnd'
-import { ChevronLeft, ChevronRight, QrCode } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { loadPdf, type LoadedPdf } from './pdfjs'
 import { useContainerWidth } from './useContainerWidth'
 import { Skeleton } from '../../components/ui'
-import type { SignaturePosition } from '../pdf-signer'
+import type { SignaturePosition, SignatureAppearance } from '../pdf-signer'
+import {
+  buildStampLines,
+  generateQrDataUrl,
+  stampBlockHeight,
+  stampLineColor,
+  STAMP_LEAD,
+  STAMP_PAD,
+  STAMP_QR_GAP,
+} from '../pdf-signer/appearance'
 
 // Tamaño FIJO del sello en puntos PDF (no redimensionable; solo se arrastra).
 const SIG_W_PT = 175
 const SIG_H_PT = 48
 
-export interface SignaturePreview {
-  name: string
-  subline?: string
-}
-
 interface Props {
   pdfBytes: Uint8Array
   onPositionChange: (pos: SignaturePosition) => void
-  /** Datos para previsualizar el sello dentro del recuadro. */
-  preview?: SignaturePreview
+  /** Apariencia real del sello, para previsualizarlo idéntico dentro del recuadro. */
+  preview?: SignatureAppearance
 }
 
 /**
@@ -35,9 +39,18 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
   const [pos, setPos] = useState({ x: 24, y: 24 })
 
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  useEffect(() => {
+    generateQrDataUrl().then(setQrDataUrl).catch(() => {})
+  }, [])
+
   // Tamaño del recuadro en px de pantalla (derivado del tamaño fijo en puntos).
   const boxW = SIG_W_PT * scale
   const boxH = SIG_H_PT * scale
+
+  // Receta del sello (idéntica al PDF), escalada a px de pantalla.
+  const lines = preview ? buildStampLines(preview, new Date()) : []
+  const blockH = stampBlockHeight(lines)
 
   useEffect(() => {
     let active = true
@@ -137,20 +150,44 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
                 position={{ x: pos.x, y: pos.y }}
                 enableResizing={false}
                 onDragStop={(_e, d) => setPos({ x: d.x, y: d.y })}
-                className="flex items-center gap-1 overflow-hidden rounded border border-dashed border-brand-500 bg-white/85 px-1 text-brand-800 shadow-sm backdrop-blur-[1px] dark:bg-slate-900/85 dark:text-brand-100"
+                className="cursor-move border border-dashed border-brand-500/70"
               >
-                <QrCode
-                  className="shrink-0"
-                  style={{ width: boxH * 0.66, height: boxH * 0.66 }}
-                  strokeWidth={1.5}
-                />
-                <span className="min-w-0 flex-1 leading-tight" style={{ fontSize: Math.max(5, boxH * 0.15) }}>
-                  <span className="block truncate font-semibold">{preview?.name ?? 'Firma'}</span>
-                  {preview?.subline && (
-                    <span className="block truncate opacity-80">{preview.subline}</span>
+                {/* Preview idéntico al sello real (QR + texto, mismas dimensiones, escalado). */}
+                <div
+                  className="flex h-full items-center"
+                  style={{
+                    paddingLeft: STAMP_PAD * scale,
+                    paddingRight: STAMP_PAD * scale,
+                    gap: STAMP_QR_GAP * scale,
+                  }}
+                >
+                  {qrDataUrl && (
+                    <img
+                      src={qrDataUrl}
+                      alt=""
+                      className="shrink-0"
+                      style={{ width: blockH * scale, height: blockH * scale }}
+                    />
                   )}
-                  <span className="block truncate opacity-50">firmaok.com.ec</span>
-                </span>
+                  <div
+                    className="flex min-w-0 flex-col justify-center"
+                    style={{ gap: STAMP_LEAD * scale }}
+                  >
+                    {lines.map((l, i) => (
+                      <span
+                        key={i}
+                        className={`block truncate ${l.bold ? 'font-bold' : ''}`}
+                        style={{
+                          fontSize: l.size * scale,
+                          lineHeight: 1,
+                          color: stampLineColor(l.faded),
+                        }}
+                      >
+                        {l.text}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </Rnd>
             )}
           </div>
