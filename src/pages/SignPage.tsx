@@ -10,7 +10,7 @@ import {
   ArrowRight,
   Check,
 } from 'lucide-react'
-import { Alert, Button, Card, EmptyState, Input, Spinner } from '../components/ui'
+import { Alert, Badge, Button, Card, EmptyState, Input, Spinner } from '../components/ui'
 import { downloadBytes, readFileBytes } from '../lib/file'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
 import { signPdf, type SignaturePosition } from '../modules/pdf-signer'
@@ -142,19 +142,38 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8">
-      <header>
+      <header className="flex flex-col gap-3">
         <h2 className="text-2xl font-semibold tracking-tight">Firmar PDF</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Firmando como <span className="font-medium text-slate-700 dark:text-slate-200">{u.subject.commonName}</span>
+        <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
+              Firmando con este certificado
+            </p>
+            <p className="mt-1 font-semibold leading-snug break-words">{u.subject.commonName}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+              {u.subject.personTypeLabel && <Badge tone="brand">{u.subject.personTypeLabel}</Badge>}
+              {u.subject.identification && (
+                <span>
+                  Cédula <span className="font-mono">{u.subject.identification}</span>
+                </span>
+              )}
+              {u.subject.companyName && <span>· {u.subject.companyName}</span>}
+              {u.subject.position && <span>· {u.subject.position}</span>}
+              {u.subject.companyRuc && (
+                <span>
+                  · RUC <span className="font-mono">{u.subject.companyRuc}</span>
+                </span>
+              )}
+            </div>
+          </div>
           {certs.length > 1 && (
-            <>
-              {' · '}
-              <button className="font-medium text-brand-600 underline" onClick={vault.lock}>
-                cambiar certificado
-              </button>
-            </>
+            <Button variant="ghost" onClick={vault.lock}>
+              <RotateCcw className="h-4 w-4" strokeWidth={2} />
+              Cambiar
+            </Button>
           )}
-        </p>
+        </div>
       </header>
 
       {!pdf ? (
@@ -243,7 +262,10 @@ function CertSelector({
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{c.label}</span>
-                {c.expired && <span className="block text-xs text-rose-500">Vencido</span>}
+                <span className="block truncate text-xs text-slate-500">
+                  {[c.subjectType, c.companyName].filter(Boolean).join(' · ') || 'Certificado'}
+                  {c.expired && ' · vencido'}
+                </span>
               </span>
               {active && <Check className="h-4 w-4 shrink-0 text-brand-600" strokeWidth={2.5} />}
             </button>

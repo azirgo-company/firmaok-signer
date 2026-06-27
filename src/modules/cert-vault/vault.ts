@@ -25,6 +25,10 @@ interface VaultRecord {
   id: string // huella SHA-256 del cert hoja
   label: string // nombre del firmante (en claro, para la lista)
   validTo: string // ISO (en claro, para la lista)
+  // Datos en claro para DISTINGUIR certificados del mismo nombre (natural / con RUC / jurídica).
+  subjectType?: string // "Persona Natural" / "...con RUC" / "Persona Jurídica"
+  identification?: string // cédula
+  companyName?: string // razón social (si jurídica)
   encKey: StoredEncryptedBlob // PKCS#8 cifrado con la clave maestra
   encMeta: StoredEncryptedBlob // metadatos completos cifrados
   createdAt: number
@@ -44,12 +48,15 @@ interface CertMetadata {
   validTo: string
 }
 
-/** Resumen visible sin desbloquear (solo el nombre + vigencia). */
+/** Resumen visible sin desbloquear (nombre + tipo + empresa, para distinguir). */
 export interface CertSummary {
   id: string
   label: string
   validTo?: Date
   expired: boolean
+  subjectType?: string
+  identification?: string
+  companyName?: string
 }
 
 /** Certificado descifrado y listo para firmar en la sesión actual (solo en memoria). */
@@ -162,6 +169,9 @@ export async function listCertificates(): Promise<CertSummary[]> {
         label: r.label,
         validTo,
         expired: validTo ? validTo.getTime() < now : false,
+        subjectType: r.subjectType,
+        identification: r.identification,
+        companyName: r.companyName,
       }
     })
     .sort((a, b) => a.label.localeCompare(b.label))
@@ -195,6 +205,9 @@ export async function importP12(p12Bytes: Uint8Array, opts: ImportOptions): Prom
     id,
     label: parsed.subject.commonName,
     validTo: parsed.validTo.toISOString(),
+    subjectType: parsed.subject.personTypeLabel,
+    identification: parsed.subject.identification,
+    companyName: parsed.subject.companyName,
     encKey: blobToStored(encKey),
     encMeta: blobToStored(encMeta),
     createdAt: Date.now(),

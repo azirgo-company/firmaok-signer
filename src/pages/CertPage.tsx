@@ -270,9 +270,11 @@ function CertCard({ cert, vault }: { cert: CertSummary; vault: Vault }) {
             )}
             {cert.expired && <Badge tone="danger">Vencido</Badge>}
           </div>
-          {cert.validTo && (
-            <p className="mt-0.5 text-xs text-slate-500">válido hasta {formatDate(cert.validTo)}</p>
-          )}
+          <p className="mt-0.5 text-xs text-slate-500">
+            {[cert.subjectType, cert.companyName].filter(Boolean).join(' · ')}
+            {cert.subjectType && cert.validTo && ' · '}
+            {cert.validTo && `válido hasta ${formatDate(cert.validTo)}`}
+          </p>
 
           {u && (
             <dl className="mt-3 grid grid-cols-[100px_1fr] gap-y-1 text-sm">

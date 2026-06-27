@@ -25,9 +25,10 @@ export function LegalNotice({ onClose }: { onClose: () => void }) {
 
       <Section title="Datos personales (LOPDP)">
         <p>
-          No recopilamos, transmitimos ni vendemos datos personales. El certificado se guarda
-          <strong> cifrado en tu propio dispositivo</strong>. No usamos analítica, rastreadores ni
-          servicios de terceros.
+          No recopilamos, transmitimos ni vendemos datos personales. Tu certificado se guarda
+          <strong> cifrado en tu propio dispositivo</strong>; solo el nombre, el tipo de firmante y
+          la razón social quedan sin cifrar para que puedas identificar tus certificados. No usamos
+          analítica, rastreadores ni servicios de terceros.
         </p>
         <p>
           El sitio se entrega desde un servidor web que, como cualquier sitio, puede registrar datos
