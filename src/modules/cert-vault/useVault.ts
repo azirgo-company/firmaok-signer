@@ -49,7 +49,10 @@ export function useVault() {
 
   const unlock = useCallback(async (id: string, masterPassword: string) => {
     const { id: finalId, unlocked } = await unlockVault(id, masterPassword)
-    setState((s) => ({ ...s, unlocked, activeId: finalId }))
+    // El desbloqueo puede auto-reparar el resumen en claro del certificado
+    // (tipo/empresa); re-leemos la lista para reflejarlo sin recargar.
+    const certificates = await listCertificates()
+    setState((s) => ({ ...s, certificates, unlocked, activeId: finalId }))
     return unlocked
   }, [])
 

@@ -232,7 +232,41 @@ export async function unlockVault(id: string, masterPassword: string): Promise<I
   const metadata = JSON.parse(new TextDecoder().decode(metaBytes)) as CertMetadata
 
   const unlocked = await toUnlocked(id, pkcs8, metadata)
+
+  // Auto-reparación del resumen en claro (tipo de firmante / empresa / cédula) que
+  // usa el listado. Estos campos se capturan al importar; certificados importados por
+  // una versión anterior de la app pueden no tenerlos, y la lista quedaría mostrando
+  // "Certificado". Ahora que tenemos el subject re-parseado, rellenamos el registro.
+  await backfillSummary(dbi, id, record, unlocked.subject)
+
   return { id, unlocked }
+}
+
+/**
+ * Sincroniza los campos en claro del listado con el subject recién parseado.
+ * Solo escribe si algo cambió (evita writes innecesarios en cada desbloqueo).
+ */
+async function backfillSummary(
+  dbi: IDBPDatabase,
+  id: string,
+  record: VaultRecord,
+  subject: CertSubject,
+): Promise<void> {
+  const next = {
+    label: subject.commonName,
+    subjectType: subject.personTypeLabel,
+    identification: subject.identification,
+    companyName: subject.companyName,
+  }
+  if (
+    record.label === next.label &&
+    record.subjectType === next.subjectType &&
+    record.identification === next.identification &&
+    record.companyName === next.companyName
+  ) {
+    return
+  }
+  await dbi.put(STORE, { ...record, ...next }, id)
 }
 
 // ---------- Borrar ----------

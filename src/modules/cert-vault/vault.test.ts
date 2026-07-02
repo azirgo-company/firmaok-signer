@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
+import { openDB } from 'idb'
 import forge from 'node-forge'
 import { binaryStringToBytes } from '../../lib/bytes'
 import type { ArgonParams } from './key-protection'
@@ -91,5 +92,31 @@ describe('vault con contraseña maestra única (Argon2id)', () => {
   it('exige al menos 12 caracteres al crear la maestra', async () => {
     const a = makeP12('ANA TORRES', '0102030405')
     await expect(importP12(a, opts('corta'))).rejects.toThrow(/12/)
+  })
+
+  it('auto-repara el resumen (tipo/cédula) al desbloquear un registro de versión antigua', async () => {
+    const a = makeP12('ANA TORRES', '0102030405')
+    const { id } = await importP12(a, opts())
+
+    // Simula un registro importado por una versión anterior de la app: sin los
+    // campos en claro del resumen que usa el listado.
+    const raw = await openDB('firmaok-vault', 3)
+    const rec = await raw.get('vault', id)
+    delete rec.subjectType
+    delete rec.identification
+    delete rec.companyName
+    await raw.put('vault', rec, id)
+    raw.close()
+
+    // El listado ya no muestra el tipo de firmante…
+    let list = await listCertificates()
+    expect(list[0].subjectType).toBeUndefined()
+    expect(list[0].identification).toBeUndefined()
+
+    // …hasta desbloquear: se re-parsea el certificado y se rellena el registro.
+    await unlockVault(id, MASTER)
+    list = await listCertificates()
+    expect(list[0].subjectType).toBe('Persona Natural')
+    expect(list[0].identification).toBe('0102030405')
   })
 })
