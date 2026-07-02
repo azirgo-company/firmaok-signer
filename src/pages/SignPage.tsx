@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   IdCard,
   Check,
+  CalendarDays,
 } from 'lucide-react'
 import { CalendarX2 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Input, Spinner } from '../components/ui'
@@ -31,6 +32,8 @@ export function SignPage({ vault }: { vault: Vault }) {
   const [pin, setPin] = useState('')
   // Gestión de certificados (importar / ver detalles / borrar) embebida en este tab.
   const [managing, setManaging] = useState(false)
+  // La fecha en el sello es opcional; por defecto no se incluye.
+  const [includeDate, setIncludeDate] = useState(false)
 
   // Selección por defecto: el certificado activo, o el primero.
   useEffect(() => {
@@ -51,6 +54,7 @@ export function SignPage({ vault }: { vault: Vault }) {
         companyName: u.subject.companyName,
         position: u.subject.position,
         companyRuc: u.subject.companyRuc,
+        includeDate,
       }
     : undefined
 
@@ -251,6 +255,19 @@ export function SignPage({ vault }: { vault: Vault }) {
                 </span>
               </Alert>
             )}
+
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
+              <input
+                type="checkbox"
+                checked={includeDate}
+                onChange={(e) => setIncludeDate(e.target.checked)}
+                className="h-4 w-4 shrink-0 accent-brand-600"
+              />
+              <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
+                <CalendarDays className="h-4 w-4 text-slate-400" strokeWidth={2} />
+                Incluir la fecha actual en la firma
+              </span>
+            </label>
 
             <Button onClick={handleSign} disabled={busy || !position}>
               {busy ? <Spinner className="h-4 w-4" /> : <Download className="h-4 w-4" strokeWidth={2} />}

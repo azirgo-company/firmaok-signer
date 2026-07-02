@@ -20,6 +20,8 @@ export interface SignatureAppearance {
   companyName?: string
   position?: string
   companyRuc?: string
+  /** Añade la fecha/hora de firma al sello. Por defecto no se muestra. */
+  includeDate?: boolean
 }
 
 /** Enlace que codifica el QR del sello. */
@@ -47,7 +49,7 @@ export function buildStampLines(a: SignatureAppearance, signingTime: Date): Stam
   } else if (a.identification) {
     lines.push({ text: `CI ${a.identification}`, size: 3.4 })
   }
-  lines.push({ text: formatDate(signingTime), size: 3.4 })
+  if (a.includeDate) lines.push({ text: formatDate(signingTime), size: 3.4 })
   lines.push({ text: 'Firmado con firmaok.com.ec', size: 3.1, faded: true })
   return lines
 }
