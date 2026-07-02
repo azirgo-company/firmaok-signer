@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Rnd } from 'react-rnd'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileWarning, RotateCcw } from 'lucide-react'
 import { loadPdf, type LoadedPdf } from './pdfjs'
 import { useContainerWidth } from './useContainerWidth'
 import { Skeleton } from '../../components/ui'
@@ -37,6 +37,8 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
   const [outerRef, outerWidth] = useContainerWidth<HTMLDivElement>()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [pdf, setPdf] = useState<LoadedPdf | null>(null)
+  const [loadError, setLoadError] = useState(false)
+  const [retryNonce, setRetryNonce] = useState(0)
   const [page, setPage] = useState(1)
   const [scale, setScale] = useState(1)
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
@@ -66,20 +68,26 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
   useEffect(() => {
     let active = true
     let loaded: LoadedPdf | null = null
-    loadPdf(pdfBytes).then((p) => {
-      if (!active) {
-        p.destroy()
-        return
-      }
-      loaded = p
-      setPdf(p)
-      setPage(1)
-    })
+    setPdf(null)
+    setLoadError(false)
+    loadPdf(pdfBytes)
+      .then((p) => {
+        if (!active) {
+          p.destroy()
+          return
+        }
+        loaded = p
+        setPdf(p)
+        setPage(1)
+      })
+      .catch(() => {
+        if (active) setLoadError(true)
+      })
     return () => {
       active = false
       loaded?.destroy()
     }
-  }, [pdfBytes])
+  }, [pdfBytes, retryNonce])
 
   useEffect(() => {
     if (!pdf || !canvasRef.current || outerWidth === 0) return
@@ -120,7 +128,25 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
 
   return (
     <div ref={outerRef} className="flex flex-col gap-3">
-      {!pdf ? (
+      {loadError ? (
+        <div className="flex flex-col items-center gap-3 p-6 text-center">
+          <span className="grid h-12 w-12 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
+            <FileWarning className="h-6 w-6" strokeWidth={2} />
+          </span>
+          <div>
+            <p className="text-sm font-medium">No se pudo cargar la vista previa del PDF.</p>
+            <p className="mt-0.5 text-xs text-slate-400">Vuelve a intentarlo.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRetryNonce((n) => n + 1)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <RotateCcw className="h-4 w-4" strokeWidth={2} />
+            Reintentar
+          </button>
+        </div>
+      ) : !pdf ? (
         <div className="flex flex-col items-center gap-3 p-2">
           <Skeleton className="h-6 w-40" />
           <Skeleton className="aspect-[1/1.3] w-full max-w-md rounded-lg" />

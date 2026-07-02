@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileWarning, RotateCcw } from 'lucide-react'
 import { loadPdf, type LoadedPdf } from './pdfjs'
 import { useContainerWidth } from './useContainerWidth'
 import { Skeleton } from '../../components/ui'
@@ -15,6 +15,8 @@ export function PdfThumbnail({ pdfBytes, width = 360 }: Props) {
   const [outerRef, outerWidth] = useContainerWidth<HTMLDivElement>()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [pdf, setPdf] = useState<LoadedPdf | null>(null)
+  const [loadError, setLoadError] = useState(false)
+  const [retryNonce, setRetryNonce] = useState(0)
   const [page, setPage] = useState(1)
   const [size, setSize] = useState({ width: 0, height: 0 })
 
@@ -24,21 +26,26 @@ export function PdfThumbnail({ pdfBytes, width = 360 }: Props) {
     let active = true
     let loaded: LoadedPdf | null = null
     setPdf(null)
+    setLoadError(false)
     setSize({ width: 0, height: 0 })
-    loadPdf(pdfBytes).then((p) => {
-      if (!active) {
-        p.destroy()
-        return
-      }
-      loaded = p
-      setPdf(p)
-      setPage(1)
-    })
+    loadPdf(pdfBytes)
+      .then((p) => {
+        if (!active) {
+          p.destroy()
+          return
+        }
+        loaded = p
+        setPdf(p)
+        setPage(1)
+      })
+      .catch(() => {
+        if (active) setLoadError(true)
+      })
     return () => {
       active = false
       loaded?.destroy()
     }
-  }, [pdfBytes])
+  }, [pdfBytes, retryNonce])
 
   useEffect(() => {
     if (!pdf || !canvasRef.current || outerWidth === 0) return
@@ -56,6 +63,28 @@ export function PdfThumbnail({ pdfBytes, width = 360 }: Props) {
   }, [pdf, page, targetWidth, outerWidth])
 
   const loaded = size.height > 0
+
+  if (loadError) {
+    return (
+      <div
+        ref={outerRef}
+        className="flex w-full flex-col items-center gap-3 rounded-xl border border-slate-200 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-900"
+      >
+        <span className="grid h-11 w-11 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
+          <FileWarning className="h-5 w-5" strokeWidth={2} />
+        </span>
+        <p className="text-xs text-slate-500">No se pudo cargar la vista previa.</p>
+        <button
+          type="button"
+          onClick={() => setRetryNonce((n) => n + 1)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
+          Reintentar
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div ref={outerRef} className="flex w-full flex-col items-center gap-2">
