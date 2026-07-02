@@ -98,13 +98,19 @@ export function ValidatePage() {
               </span>
             </div>
             <PdfThumbnail pdfBytes={pdfBytes} width={340} />
-            <Button variant="ghost" onClick={reset} className="w-full">
-              <RotateCcw className="h-4 w-4" strokeWidth={2} />
-              Validar otro PDF
-            </Button>
           </aside>
 
           <section className="flex min-w-0 flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="min-w-0 truncate text-sm text-slate-500">
+                {!busy && reports && reports.length > 0 ? summarize(reports) : ''}
+              </p>
+              <Button variant="ghost" onClick={reset} className="shrink-0">
+                <RotateCcw className="h-4 w-4" strokeWidth={2} />
+                Validar otro PDF
+              </Button>
+            </div>
+
             {busy && <LoadingSkeletons />}
 
             {!busy && reports && reports.length === 0 && (
@@ -113,7 +119,6 @@ export function ValidatePage() {
 
             {!busy && reports && reports.length > 0 && (
               <>
-                <p className="text-sm text-slate-500">{summarize(reports)}</p>
                 {reports.map((r) => (
                   <SignatureCard key={r.index} r={r} />
                 ))}
