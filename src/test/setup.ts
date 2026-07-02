@@ -7,3 +7,17 @@ if (!globalThis.crypto?.subtle) {
   const { webcrypto } = await import('node:crypto')
   Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
 }
+
+// jsdom no implementa matchMedia; stub mínimo para useTheme (tema por defecto: claro).
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia
+}

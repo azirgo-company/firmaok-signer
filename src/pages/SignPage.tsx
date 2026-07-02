@@ -7,20 +7,20 @@ import {
   FileText,
   CheckCircle2,
   IdCard,
-  ArrowRight,
   Check,
 } from 'lucide-react'
 import { CalendarX2 } from 'lucide-react'
-import { Alert, Badge, Button, Card, EmptyState, Input, Spinner } from '../components/ui'
+import { Alert, Badge, Button, Card, Input, Spinner } from '../components/ui'
 import { downloadBytes, readFileBytes } from '../lib/file'
 import { formatDate } from '../lib/date'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
 import { signPdf, type SignaturePosition } from '../modules/pdf-signer'
+import { CertPage } from './CertPage'
 import type { useVault } from '../modules/cert-vault/useVault'
 
 type Vault = ReturnType<typeof useVault>
 
-export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () => void }) {
+export function SignPage({ vault }: { vault: Vault }) {
   const certs = vault.certificates
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pdf, setPdf] = useState<{ name: string; bytes: Uint8Array } | null>(null)
@@ -29,6 +29,8 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [pin, setPin] = useState('')
+  // Gestión de certificados (importar / ver detalles / borrar) embebida en este tab.
+  const [managing, setManaging] = useState(false)
 
   // Selección por defecto: el certificado activo, o el primero.
   useEffect(() => {
@@ -52,20 +54,11 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
       }
     : undefined
 
-  if (!vault.hasCertificate) {
-    return (
-      <EmptyState
-        icon={<IdCard className="h-8 w-8" strokeWidth={1.75} />}
-        title="Primero, tu certificado"
-        description="Para firmar documentos necesitas tu certificado de firma (.p12). Se importa una sola vez y se guarda cifrado en este dispositivo."
-      >
-        <Button onClick={onGoToCert}>
-          <IdCard className="h-4 w-4" strokeWidth={2} />
-          Importar certificado
-          <ArrowRight className="h-4 w-4" strokeWidth={2} />
-        </Button>
-      </EmptyState>
-    )
+  // Gestión de certificados embebida: al pulsar "Administrar" o cuando aún no hay
+  // ningún certificado, mostramos aquí mismo la pantalla de importar/gestionar
+  // (antes era un tab aparte). CertPage resuelve el estado de carga internamente.
+  if (managing || !vault.hasCertificate) {
+    return <CertPage vault={vault} onClose={managing ? () => setManaging(false) : undefined} />
   }
 
   async function handleUnlock() {
@@ -123,7 +116,7 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
           <ExpiredCert
             name={selected?.label ?? 'Este certificado'}
             validTo={selected?.validTo}
-            onImport={onGoToCert}
+            onImport={() => setManaging(true)}
           />
         ) : (
           <Card className="flex flex-col gap-3">
@@ -149,6 +142,15 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
             </Button>
           </Card>
         )}
+
+        <button
+          type="button"
+          onClick={() => setManaging(true)}
+          className="mx-auto inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-brand-600 dark:hover:text-brand-500"
+        >
+          <IdCard className="h-4 w-4" strokeWidth={2} />
+          Administrar certificados
+        </button>
       </div>
     )
   }
@@ -164,7 +166,7 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
           name={u.subject.commonName}
           validTo={u.validTo}
           notYetValid={u.validFrom.getTime() > now}
-          onImport={onGoToCert}
+          onImport={() => setManaging(true)}
           onChange={certs.length > 1 ? vault.lock : undefined}
         />
       </div>
@@ -198,12 +200,18 @@ export function SignPage({ vault, onGoToCert }: { vault: Vault; onGoToCert: () =
               )}
             </div>
           </div>
-          {certs.length > 1 && (
-            <Button variant="ghost" onClick={vault.lock}>
-              <RotateCcw className="h-4 w-4" strokeWidth={2} />
-              Cambiar
+          <div className="flex shrink-0 items-center gap-1">
+            <Button variant="ghost" onClick={() => setManaging(true)}>
+              <IdCard className="h-4 w-4" strokeWidth={2} />
+              Certificados
             </Button>
-          )}
+            {certs.length > 1 && (
+              <Button variant="ghost" onClick={vault.lock}>
+                <RotateCcw className="h-4 w-4" strokeWidth={2} />
+                Cambiar
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 

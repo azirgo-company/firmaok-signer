@@ -1,5 +1,9 @@
 @import 'tailwindcss';
 
+/* Dark mode por clase (.dark en <html>) en vez del media query del sistema, para
+   permitir el override manual desde el header (ver src/lib/useTheme.ts). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: 'Geist Variable', system-ui, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, monospace;

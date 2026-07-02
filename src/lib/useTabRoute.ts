@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 
 // Enrutado mínimo por path (sin dependencias): cada tab tiene su propia URL
-// (/firmar, /validar, /certificado) para que al recargar se mantenga el tab.
-// El fallback SPA (nginx try_files + navigateFallback del service worker) sirve
-// index.html en cualquiera de estas rutas, también offline.
-export const TAB_IDS = ['firmar', 'validar', 'certificado'] as const
+// (/firmar, /validar) para que al recargar se mantenga el tab. El fallback SPA
+// (nginx try_files + navigateFallback del service worker) sirve index.html en
+// cualquiera de estas rutas, también offline. Rutas desconocidas (p. ej. el
+// antiguo /certificado) caen a /firmar.
+export const TAB_IDS = ['firmar', 'validar'] as const
 export type Tab = (typeof TAB_IDS)[number]
 
 const DEFAULT_TAB: Tab = 'firmar'

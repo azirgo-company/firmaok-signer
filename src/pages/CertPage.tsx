@@ -20,7 +20,7 @@ import type { useVault } from '../modules/cert-vault/useVault'
 
 type Vault = ReturnType<typeof useVault>
 
-export function CertPage({ vault }: { vault: Vault }) {
+export function CertPage({ vault, onClose }: { vault: Vault; onClose?: () => void }) {
   const [importing, setImporting] = useState(false)
 
   if (vault.loading)
@@ -40,7 +40,9 @@ export function CertPage({ vault }: { vault: Vault }) {
     )
   }
 
-  return <CertList vault={vault} onImportAnother={() => setImporting(true)} />
+  return (
+    <CertList vault={vault} onImportAnother={() => setImporting(true)} onClose={onClose} />
+  )
 }
 
 // ---------- Medidor de fortaleza ----------
@@ -198,9 +200,23 @@ function ImportCert({
   )
 }
 
-function CertList({ vault, onImportAnother }: { vault: Vault; onImportAnother: () => void }) {
+function CertList({
+  vault,
+  onImportAnother,
+  onClose,
+}: {
+  vault: Vault
+  onImportAnother: () => void
+  onClose?: () => void
+}) {
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-8">
+      {onClose && (
+        <Button variant="ghost" onClick={onClose} className="-mb-2 self-start">
+          <ArrowLeft className="h-4 w-4" strokeWidth={2} />
+          Volver a firmar
+        </Button>
+      )}
       <header className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Mis certificados</h2>

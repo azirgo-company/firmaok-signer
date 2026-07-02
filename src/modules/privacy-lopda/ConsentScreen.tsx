@@ -24,7 +24,7 @@ const POINTS = [
   {
     icon: Trash2,
     title: 'Derecho de supresión',
-    body: 'Borra el certificado y sus datos cuando quieras desde la pestaña Certificado.',
+    body: 'Borra el certificado y sus datos cuando quieras desde Firmar › Administrar certificados.',
   },
 ]
 

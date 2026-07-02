@@ -38,7 +38,7 @@ export function LegalNotice({ onClose }: { onClose: () => void }) {
         <p>
           Conforme a la Ley Orgánica de Protección de Datos Personales, puedes ejercer tus derechos
           de acceso, rectificación y <strong>supresión</strong>: elimina tu certificado y sus datos
-          en cualquier momento desde la pestaña «Certificado».
+          en cualquier momento desde «Firmar › Administrar certificados».
         </p>
       </Section>
 
