@@ -8,16 +8,19 @@ import type { SignaturePosition, SignatureAppearance } from '../pdf-signer'
 import {
   buildStampLines,
   generateQrDataUrl,
+  getHelveticaMeasurer,
   stampBlockHeight,
   stampLineColor,
   STAMP_LEAD,
   STAMP_PAD,
   STAMP_QR_GAP,
+  STAMP_WIDTH,
+  STAMP_HEIGHT,
 } from '../pdf-signer/appearance'
 
 // Tamaño FIJO del sello en puntos PDF (no redimensionable; solo se arrastra).
-const SIG_W_PT = 175
-const SIG_H_PT = 48
+const SIG_W_PT = STAMP_WIDTH
+const SIG_H_PT = STAMP_HEIGHT
 
 interface Props {
   pdfBytes: Uint8Array
@@ -44,12 +47,20 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
     generateQrDataUrl().then(setQrDataUrl).catch(() => {})
   }, [])
 
+  // Medidor de Helvetica (para envolver la nota igual que en el PDF); carga async.
+  const [measure, setMeasure] = useState<((t: string, size: number) => number) | null>(null)
+  useEffect(() => {
+    getHelveticaMeasurer()
+      .then((m) => setMeasure(() => m))
+      .catch(() => {})
+  }, [])
+
   // Tamaño del recuadro en px de pantalla (derivado del tamaño fijo en puntos).
   const boxW = SIG_W_PT * scale
   const boxH = SIG_H_PT * scale
 
   // Receta del sello (idéntica al PDF), escalada a px de pantalla.
-  const lines = preview ? buildStampLines(preview, new Date()) : []
+  const lines = preview ? buildStampLines(preview, new Date(), measure ?? undefined) : []
   const blockH = stampBlockHeight(lines)
 
   useEffect(() => {

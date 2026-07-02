@@ -21,6 +21,9 @@ import type { useVault } from '../modules/cert-vault/useVault'
 
 type Vault = ReturnType<typeof useVault>
 
+// Tope de la nota del sello (el contenido visible se envuelve a un máx. de 2 líneas).
+const NOTES_MAX = 100
+
 export function SignPage({ vault }: { vault: Vault }) {
   const certs = vault.certificates
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -34,6 +37,8 @@ export function SignPage({ vault }: { vault: Vault }) {
   const [managing, setManaging] = useState(false)
   // La fecha en el sello es opcional; por defecto no se incluye.
   const [includeDate, setIncludeDate] = useState(false)
+  // Nota libre opcional en el sello (máximo 2 líneas).
+  const [notes, setNotes] = useState('')
 
   // Selección por defecto: el certificado activo, o el primero.
   useEffect(() => {
@@ -55,6 +60,7 @@ export function SignPage({ vault }: { vault: Vault }) {
         position: u.subject.position,
         companyRuc: u.subject.companyRuc,
         includeDate,
+        notes,
       }
     : undefined
 
@@ -267,6 +273,23 @@ export function SignPage({ vault }: { vault: Vault }) {
                 <CalendarDays className="h-4 w-4 text-slate-400" strokeWidth={2} />
                 Incluir la fecha actual en la firma
               </span>
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="flex items-center justify-between font-medium text-slate-700 dark:text-slate-200">
+                Notas
+                <span className="text-xs font-normal tabular-nums text-slate-400">
+                  {notes.length}/{NOTES_MAX}
+                </span>
+              </span>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                maxLength={NOTES_MAX}
+                placeholder="Nota opcional en la firma (máx. 2 líneas)"
+                className="resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
             </label>
 
             <Button onClick={handleSign} disabled={busy || !position}>

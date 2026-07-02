@@ -22,6 +22,18 @@ export interface SignatureAppearance {
   companyRuc?: string
   /** Añade la fecha/hora de firma al sello. Por defecto no se muestra. */
   includeDate?: boolean
+  /** Nota libre del firmante (máximo 2 líneas) mostrada en el sello. */
+  notes?: string
+}
+
+/** Divide las notas en un máximo de 2 líneas no vacías (para el sello y el preview). */
+export function noteLines(notes?: string): string[] {
+  if (!notes) return []
+  return notes
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, 2)
 }
 
 /** Enlace que codifica el QR del sello. */
@@ -31,6 +43,71 @@ export const VERIFY_URL = 'https://firmaok.com.ec/'
 export const STAMP_PAD = 3
 export const STAMP_LEAD = 1.1
 export const STAMP_QR_GAP = 4
+// Dimensiones fijas del sello en puntos PDF (coinciden con el recuadro del preview).
+export const STAMP_WIDTH = 175
+export const STAMP_HEIGHT = 48
+// Tamaño de fuente de las líneas de nota.
+export const STAMP_NOTE_SIZE = 3.3
+
+// Medidor de ancho con las métricas REALES de Helvetica, cacheado. Se usa tanto en
+// el PDF como en el preview para que las notas se envuelvan exactamente igual.
+let helveticaMeasurer: Promise<(text: string, size: number) => number> | null = null
+export function getHelveticaMeasurer(): Promise<(text: string, size: number) => number> {
+  if (!helveticaMeasurer) {
+    helveticaMeasurer = (async () => {
+      const doc = await PDFDocument.create()
+      const font = await doc.embedFont(StandardFonts.Helvetica)
+      return (text: string, size: number) => font.widthOfTextAtSize(text, size)
+    })()
+  }
+  return helveticaMeasurer
+}
+
+/**
+ * Envuelve `text` en como máximo `maxLines` líneas que quepan en `maxWidth`,
+ * midiendo con `measure`. Rompe por espacios y, si una palabra no cabe, por
+ * caracteres (para textos sin espacios). La última línea se recorta con «…».
+ */
+export function wrapText(
+  text: string,
+  maxWidth: number,
+  measure: (t: string) => number,
+  maxLines: number,
+): string[] {
+  const fits = (t: string) => measure(t) <= maxWidth
+  const lines: string[] = []
+  let line = ''
+
+  for (const word of text.split(' ').filter(Boolean)) {
+    let w = word
+    // Palabra más larga que el ancho disponible: partir por caracteres.
+    while (!fits(w)) {
+      let i = w.length
+      while (i > 1 && !fits(w.slice(0, i))) i--
+      if (i >= w.length) break // salvaguarda (ancho ~0)
+      if (line) lines.push(line)
+      lines.push(w.slice(0, i))
+      line = ''
+      w = w.slice(i)
+    }
+    if (!w) continue
+    const candidate = line ? `${line} ${w}` : w
+    if (fits(candidate)) {
+      line = candidate
+    } else {
+      if (line) lines.push(line)
+      line = w
+    }
+  }
+  if (line) lines.push(line)
+
+  if (lines.length <= maxLines) return lines
+  const kept = lines.slice(0, maxLines)
+  let last = kept[maxLines - 1]
+  while (last.length > 0 && !fits(`${last}…`)) last = last.slice(0, -1)
+  kept[maxLines - 1] = `${last}…`
+  return kept
+}
 
 export interface StampLine {
   text: string
@@ -39,19 +116,49 @@ export interface StampLine {
   faded?: boolean
 }
 
-/** Construye las líneas de texto del sello (mismo orden y tamaños en PDF y preview). */
-export function buildStampLines(a: SignatureAppearance, signingTime: Date): StampLine[] {
-  const lines: StampLine[] = [{ text: a.name, size: 4, bold: true }]
+/**
+ * Construye las líneas de texto del sello (mismo orden y tamaños en PDF y preview).
+ * Si se pasa `measure` (métricas de Helvetica), la nota se envuelve por ancho a un
+ * máximo de 2 líneas usando todo el espacio a la derecha del QR; sin `measure` cae
+ * al modo simple (líneas separadas por saltos, recortadas por el renderizador).
+ */
+export function buildStampLines(
+  a: SignatureAppearance,
+  signingTime: Date,
+  measure?: (text: string, size: number) => number,
+): StampLine[] {
+  const head: StampLine[] = [{ text: a.name, size: 4, bold: true }]
   if (a.isCompany) {
-    if (a.companyName) lines.push({ text: a.companyName, size: 3.6, bold: true })
-    if (a.position) lines.push({ text: a.position, size: 3.4 })
-    if (a.companyRuc) lines.push({ text: `RUC ${a.companyRuc}`, size: 3.4 })
+    if (a.companyName) head.push({ text: a.companyName, size: 3.6, bold: true })
+    if (a.position) head.push({ text: a.position, size: 3.4 })
+    if (a.companyRuc) head.push({ text: `RUC ${a.companyRuc}`, size: 3.4 })
   } else if (a.identification) {
-    lines.push({ text: `CI ${a.identification}`, size: 3.4 })
+    head.push({ text: `CI ${a.identification}`, size: 3.4 })
   }
-  if (a.includeDate) lines.push({ text: formatDate(signingTime), size: 3.4 })
-  lines.push({ text: 'Firmado con firmaok.com.ec', size: 3.1, faded: true })
-  return lines
+  if (a.includeDate) head.push({ text: formatDate(signingTime), size: 3.4 })
+
+  const footer: StampLine = { text: 'Firmado con firmaok.com.ec', size: 3.1, faded: true }
+
+  const notesText = (a.notes ?? '').replace(/\s+/g, ' ').trim()
+  if (!notesText) return [...head, footer]
+
+  let noteTexts: string[]
+  if (measure) {
+    // Ancho a la derecha del QR asumiendo 2 líneas de nota (el máximo).
+    const stub: StampLine = { text: '', size: STAMP_NOTE_SIZE }
+    const blockH = stampBlockHeight([...head, stub, stub, footer])
+    const qrSize = Math.min(blockH, STAMP_HEIGHT - STAMP_PAD * 2)
+    const textWidth = STAMP_WIDTH - STAMP_PAD * 2 - qrSize - STAMP_QR_GAP
+    noteTexts = wrapText(notesText, textWidth, (t) => measure(t, STAMP_NOTE_SIZE), 2)
+  } else {
+    noteTexts = noteLines(a.notes)
+  }
+
+  return [
+    ...head,
+    ...noteTexts.map((text) => ({ text, size: STAMP_NOTE_SIZE })),
+    footer,
+  ]
 }
 
 /** Alto del bloque de texto (también es el tamaño del QR). */
@@ -91,7 +198,9 @@ export async function drawSignatureAppearance(
 
   // Sin recuadro ni fondo: solo QR + texto, transparente sobre el documento.
   const pad = STAMP_PAD
-  const lines = buildStampLines(appearance, signingTime)
+  const lines = buildStampLines(appearance, signingTime, (t, size) =>
+    font.widthOfTextAtSize(t, size),
+  )
   const blockH = stampBlockHeight(lines)
 
   // QR del MISMO alto que el texto, centrado verticalmente.
