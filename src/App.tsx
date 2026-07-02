@@ -8,8 +8,7 @@ import { LegalNotice } from './components/LegalNotice'
 import { CertPage } from './pages/CertPage'
 import { SignPage } from './pages/SignPage'
 import { ValidatePage } from './pages/ValidatePage'
-
-type Tab = 'firmar' | 'validar' | 'certificado'
+import { useTabRoute, type Tab } from './lib/useTabRoute'
 
 const TABS: { id: Tab; label: string; icon: typeof PenLine }[] = [
   { id: 'firmar', label: 'Firmar', icon: PenLine },
@@ -20,7 +19,7 @@ const TABS: { id: Tab; label: string; icon: typeof PenLine }[] = [
 export default function App() {
   const { accepted, accept } = useConsent()
   const vault = useVault()
-  const [tab, setTab] = useState<Tab>('firmar')
+  const [tab, setTab] = useTabRoute()
   const [showLegal, setShowLegal] = useState(false)
 
   if (!accepted) return <ConsentScreen onAccept={accept} />
@@ -31,9 +30,9 @@ export default function App() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-2.5">
             <img
-              src="/logo-firmaok.webp"
+              src="/firma-ok-header.png"
               alt="FirmaOK"
-              className="h-7 w-auto rounded-md bg-white"
+              className="h-10 w-auto invert dark:invert-0"
             />
             <span className="hidden items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 sm:inline-flex dark:bg-slate-800 dark:text-slate-400">
               <WifiOff className="h-3 w-3" strokeWidth={2} />
