@@ -41,7 +41,7 @@ export const VERIFY_URL = 'https://firmaok.com.ec/'
 
 // Receta del sello (compartida entre el PDF real y el preview en pantalla).
 export const STAMP_PAD = 6
-export const STAMP_LEAD = 2
+export const STAMP_LEAD = 1.8
 export const STAMP_QR_GAP = 8
 // Dimensiones MÁXIMAS del sello en puntos PDF; el tamaño real se ajusta al
 // contenido con stampWidth()/stampHeight().
@@ -55,7 +55,7 @@ export function stampQrSize(lines: StampLine[]): number {
   return Math.min(stampBlockHeight(lines) * 1.2, STAMP_QR_MAX)
 }
 // Tamaño de fuente de las líneas de nota.
-export const STAMP_NOTE_SIZE = 5.8
+export const STAMP_NOTE_SIZE = 5
 
 // Medidor de ancho con las métricas REALES de Helvetica (regular y bold), cacheado.
 // Se usa tanto en el PDF como en el preview para que las notas se envuelvan y el
@@ -149,17 +149,17 @@ export function buildStampLines(
   signingTime: Date,
   measure?: (text: string, size: number) => number,
 ): StampLine[] {
-  const head: StampLine[] = splitName(a.name).map((text) => ({ text, size: 7, bold: true }))
+  const head: StampLine[] = splitName(a.name).map((text) => ({ text, size: 6, bold: true }))
   if (a.isCompany) {
-    if (a.companyName) head.push({ text: a.companyName, size: 6.3, bold: true })
-    if (a.position) head.push({ text: a.position, size: 6 })
-    if (a.companyRuc) head.push({ text: `RUC ${a.companyRuc}`, size: 6 })
+    if (a.companyName) head.push({ text: a.companyName, size: 5.4, bold: true })
+    if (a.position) head.push({ text: a.position, size: 5.2 })
+    if (a.companyRuc) head.push({ text: `RUC ${a.companyRuc}`, size: 5.2 })
   } else if (a.identification) {
-    head.push({ text: `CI ${a.identification}`, size: 6 })
+    head.push({ text: `CI ${a.identification}`, size: 5.2 })
   }
-  if (a.includeDate) head.push({ text: formatDate(signingTime), size: 6 })
+  if (a.includeDate) head.push({ text: formatDate(signingTime), size: 5.2 })
 
-  const footer: StampLine = { text: 'Firmado con firmaok.com.ec', size: 5.4, faded: true }
+  const footer: StampLine = { text: 'Firmado con firmaok.com.ec', size: 4.7, faded: true }
 
   const notesText = (a.notes ?? '').replace(/\s+/g, ' ').trim()
   if (!notesText) return [...head, footer]
