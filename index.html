@@ -9,10 +9,53 @@
       content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#2563eb" />
-    <meta name="description" content="Firma y valida documentos PDF 100% offline. Tus datos nunca salen del dispositivo." />
+    <meta
+      name="description"
+      content="Firma y valida documentos PDF 100% offline. Tus datos nunca salen del dispositivo."
+    />
     <title>FirmaOK Signer</title>
+    <!-- Schema.org (JSON-LD). Es un data block, no script ejecutable: la CSP no lo bloquea. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "FirmaOK Signer",
+        "alternateName": "FirmaOK",
+        "url": "https://firmaok.com.ec/",
+        "description": "Firma y valida documentos PDF 100% offline con firma electrónica PAdES, compatible con FirmaEC. El certificado .p12, su clave privada y los documentos nunca salen del dispositivo.",
+        "applicationCategory": "SecurityApplication",
+        "applicationSubCategory": "Firma electrónica de documentos PDF",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requiere un navegador moderno con soporte de WebCrypto y WebAssembly",
+        "inLanguage": "es",
+        "isAccessibleForFree": true,
+        "image": "https://firmaok.com.ec/logo-firmaok-white.webp",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "featureList": [
+          "Firma PAdES-B visible compatible con FirmaEC",
+          "Validación offline de firmas electrónicas en PDF",
+          "Certificado .p12 cifrado localmente, desbloqueo con biometría (WebAuthn) o PIN",
+          "Funciona 100% offline: los documentos nunca salen del dispositivo",
+          "Instalable como PWA"
+        ],
+        "countriesSupported": "EC",
+        "publisher": {
+          "@type": "Organization",
+          "name": "FirmaOK",
+          "url": "https://firmaok.com.ec/",
+          "logo": "https://firmaok.com.ec/logo-firmaok-light.webp"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
