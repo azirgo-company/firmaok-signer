@@ -46,8 +46,13 @@ export const STAMP_QR_GAP = 4
 // Dimensiones fijas del sello en puntos PDF (coinciden con el recuadro del preview).
 export const STAMP_WIDTH = 175
 export const STAMP_HEIGHT = 48
-// El QR ocupa toda la altura útil del sello (misma medida en PDF y preview).
-export const STAMP_QR_SIZE = STAMP_HEIGHT - STAMP_PAD * 2
+// Tope del QR: la altura útil del sello (el tamaño real es el alto del bloque de texto).
+export const STAMP_QR_MAX = STAMP_HEIGHT - STAMP_PAD * 2
+
+/** Tamaño del QR del sello: el MISMO alto que el bloque de texto (igual en PDF y preview). */
+export function stampQrSize(lines: StampLine[]): number {
+  return Math.min(stampBlockHeight(lines), STAMP_QR_MAX)
+}
 // Tamaño de fuente de las líneas de nota.
 export const STAMP_NOTE_SIZE = 3.3
 
@@ -146,8 +151,10 @@ export function buildStampLines(
 
   let noteTexts: string[]
   if (measure) {
-    // Ancho disponible a la derecha del QR (de tamaño fijo).
-    const textWidth = STAMP_WIDTH - STAMP_PAD * 2 - STAMP_QR_SIZE - STAMP_QR_GAP
+    // Ancho a la derecha del QR asumiendo 2 líneas de nota (el máximo).
+    const stub: StampLine = { text: '', size: STAMP_NOTE_SIZE }
+    const qrSize = stampQrSize([...head, stub, stub, footer])
+    const textWidth = STAMP_WIDTH - STAMP_PAD * 2 - qrSize - STAMP_QR_GAP
     noteTexts = wrapText(notesText, textWidth, (t) => measure(t, STAMP_NOTE_SIZE), 2)
   } else {
     noteTexts = noteLines(a.notes)
@@ -202,8 +209,8 @@ export async function drawSignatureAppearance(
   )
   const blockH = stampBlockHeight(lines)
 
-  // QR a toda la altura útil del sello, centrado verticalmente.
-  const qrSize = Math.min(STAMP_QR_SIZE, pos.height - pad * 2)
+  // QR del MISMO alto que el texto, centrado verticalmente.
+  const qrSize = Math.min(stampQrSize(lines), pos.height - pad * 2)
   let textX = pos.x + pad
   try {
     const dataUrl = await generateQrDataUrl()

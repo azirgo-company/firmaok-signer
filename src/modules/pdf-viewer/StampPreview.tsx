@@ -5,10 +5,10 @@ import {
   generateQrDataUrl,
   getHelveticaMeasurer,
   stampLineColor,
+  stampQrSize,
   STAMP_LEAD,
   STAMP_PAD,
   STAMP_QR_GAP,
-  STAMP_QR_SIZE,
   STAMP_WIDTH,
   STAMP_HEIGHT,
 } from '../pdf-signer/appearance'
@@ -39,10 +39,11 @@ export function StampPreview({
   }, [])
 
   const lines = buildStampLines(appearance, new Date(), measure ?? undefined)
+  const qrSize = stampQrSize(lines)
 
   return (
     <div
-      className="flex items-center"
+      className="flex items-center text-left"
       style={{
         width: STAMP_WIDTH * scale,
         height: STAMP_HEIGHT * scale,
@@ -56,7 +57,7 @@ export function StampPreview({
           src={qrDataUrl}
           alt=""
           className="shrink-0"
-          style={{ width: STAMP_QR_SIZE * scale, height: STAMP_QR_SIZE * scale }}
+          style={{ width: qrSize * scale, height: qrSize * scale }}
         />
       )}
       <div className="flex min-w-0 flex-col justify-center" style={{ gap: STAMP_LEAD * scale }}>
