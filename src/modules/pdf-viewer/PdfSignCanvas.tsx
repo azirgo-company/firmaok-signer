@@ -3,14 +3,9 @@ import { Rnd } from 'react-rnd'
 import { ChevronLeft, ChevronRight, FileWarning, RotateCcw } from 'lucide-react'
 import { loadPdf, type LoadedPdf } from './pdfjs'
 import { useContainerWidth } from './useContainerWidth'
-import { StampPreview } from './StampPreview'
+import { StampPreview, useStampDims } from './StampPreview'
 import { Skeleton } from '../../components/ui'
 import type { SignaturePosition, SignatureAppearance } from '../pdf-signer'
-import { STAMP_WIDTH, STAMP_HEIGHT } from '../pdf-signer/appearance'
-
-// Tamaño FIJO del sello en puntos PDF (no redimensionable; solo se arrastra).
-const SIG_W_PT = STAMP_WIDTH
-const SIG_H_PT = STAMP_HEIGHT
 
 interface Props {
   pdfBytes: Uint8Array
@@ -34,9 +29,11 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
   const [pos, setPos] = useState({ x: 24, y: 24 })
 
-  // Tamaño del recuadro en px de pantalla (derivado del tamaño fijo en puntos).
-  const boxW = SIG_W_PT * scale
-  const boxH = SIG_H_PT * scale
+  // Tamaño del sello en puntos PDF, ajustado al contenido (no redimensionable;
+  // solo se arrastra), y su equivalente en px de pantalla.
+  const { width: sigW, height: sigH } = useStampDims(preview)
+  const boxW = sigW * scale
+  const boxH = sigH * scale
 
   useEffect(() => {
     let active = true
@@ -86,12 +83,12 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
       onPositionChange({
         pageIndex: pageNumber - 1,
         x: p.x / s,
-        y: (canvasH - p.y - SIG_H_PT * s) / s,
-        width: SIG_W_PT, // tamaño fijo en puntos
-        height: SIG_H_PT,
+        y: (canvasH - p.y - sigH * s) / s,
+        width: sigW,
+        height: sigH,
       })
     },
-    [onPositionChange],
+    [onPositionChange, sigW, sigH],
   )
 
   // Reemite cuando cambia posición, página, canvas o escala.

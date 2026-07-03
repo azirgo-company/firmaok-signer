@@ -43,7 +43,8 @@ export const VERIFY_URL = 'https://firmaok.com.ec/'
 export const STAMP_PAD = 6
 export const STAMP_LEAD = 2.2
 export const STAMP_QR_GAP = 8
-// Dimensiones fijas del sello en puntos PDF (coinciden con el recuadro del preview).
+// Dimensiones MÁXIMAS del sello en puntos PDF; el tamaño real se ajusta al
+// contenido con stampWidth()/stampHeight().
 export const STAMP_WIDTH = 350
 export const STAMP_HEIGHT = 96
 // Tope del QR: la altura útil del sello.
@@ -56,15 +57,19 @@ export function stampQrSize(lines: StampLine[]): number {
 // Tamaño de fuente de las líneas de nota.
 export const STAMP_NOTE_SIZE = 6.6
 
-// Medidor de ancho con las métricas REALES de Helvetica, cacheado. Se usa tanto en
-// el PDF como en el preview para que las notas se envuelvan exactamente igual.
-let helveticaMeasurer: Promise<(text: string, size: number) => number> | null = null
-export function getHelveticaMeasurer(): Promise<(text: string, size: number) => number> {
+// Medidor de ancho con las métricas REALES de Helvetica (regular y bold), cacheado.
+// Se usa tanto en el PDF como en el preview para que las notas se envuelvan y el
+// ancho del sello se calcule exactamente igual.
+export type StampMeasure = (text: string, size: number, bold?: boolean) => number
+let helveticaMeasurer: Promise<StampMeasure> | null = null
+export function getHelveticaMeasurer(): Promise<StampMeasure> {
   if (!helveticaMeasurer) {
     helveticaMeasurer = (async () => {
       const doc = await PDFDocument.create()
       const font = await doc.embedFont(StandardFonts.Helvetica)
-      return (text: string, size: number) => font.widthOfTextAtSize(text, size)
+      const fontBold = await doc.embedFont(StandardFonts.HelveticaBold)
+      return (text: string, size: number, bold = false) =>
+        (bold ? fontBold : font).widthOfTextAtSize(text, size)
     })()
   }
   return helveticaMeasurer
@@ -124,6 +129,16 @@ export interface StampLine {
 }
 
 /**
+ * Divide el nombre completo en 2 filas: nombres arriba y los (hasta) 2 últimos
+ * términos —los apellidos— abajo. Con 2 palabras o menos queda en una sola fila.
+ */
+export function splitName(name: string): string[] {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length <= 2) return words.length ? [words.join(' ')] : []
+  return [words.slice(0, -2).join(' '), words.slice(-2).join(' ')]
+}
+
+/**
  * Construye las líneas de texto del sello (mismo orden y tamaños en PDF y preview).
  * Si se pasa `measure` (métricas de Helvetica), la nota se envuelve por ancho a un
  * máximo de 2 líneas usando todo el espacio a la derecha del QR; sin `measure` cae
@@ -134,7 +149,7 @@ export function buildStampLines(
   signingTime: Date,
   measure?: (text: string, size: number) => number,
 ): StampLine[] {
-  const head: StampLine[] = [{ text: a.name, size: 8, bold: true }]
+  const head: StampLine[] = splitName(a.name).map((text) => ({ text, size: 8, bold: true }))
   if (a.isCompany) {
     if (a.companyName) head.push({ text: a.companyName, size: 7.2, bold: true })
     if (a.position) head.push({ text: a.position, size: 6.8 })
@@ -167,9 +182,27 @@ export function buildStampLines(
   ]
 }
 
-/** Alto del bloque de texto (también es el tamaño del QR). */
+/** Alto del bloque de texto (base del tamaño del QR). */
 export function stampBlockHeight(lines: StampLine[]): number {
   return lines.reduce((n, l) => n + l.size + STAMP_LEAD, 0) - STAMP_LEAD
+}
+
+/**
+ * Ancho del sello ajustado al contenido: QR + la línea de texto más ancha,
+ * con tope en STAMP_WIDTH. Sin medidor cae al ancho máximo.
+ */
+export function stampWidth(lines: StampLine[], measure?: StampMeasure): number {
+  if (!measure) return STAMP_WIDTH
+  const textW = Math.max(...lines.map((l) => measure(l.text, l.size, l.bold)))
+  const w = STAMP_PAD * 2 + stampQrSize(lines) + STAMP_QR_GAP + textW
+  // +1pt de holgura para que el redondeo no trunque la línea más ancha.
+  return Math.min(STAMP_WIDTH, Math.ceil(w) + 1)
+}
+
+/** Alto del sello ajustado al contenido (el mayor entre texto y QR), con tope. */
+export function stampHeight(lines: StampLine[]): number {
+  const h = Math.max(stampBlockHeight(lines), stampQrSize(lines)) + STAMP_PAD * 2
+  return Math.min(STAMP_HEIGHT, Math.ceil(h))
 }
 
 /** Color de cada línea, igual en PDF y preview. */

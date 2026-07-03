@@ -17,9 +17,8 @@ import { Alert, Badge, Button, Card, Input, Modal, Spinner } from '../components
 import { downloadBytes, readFileBytes } from '../lib/file'
 import { formatDate } from '../lib/date'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
-import { StampPreview } from '../modules/pdf-viewer/StampPreview'
+import { StampPreview, useStampDims } from '../modules/pdf-viewer/StampPreview'
 import { useContainerWidth } from '../modules/pdf-viewer/useContainerWidth'
-import { STAMP_WIDTH } from '../modules/pdf-signer/appearance'
 import { signPdf, type SignaturePosition, type SignatureAppearance } from '../modules/pdf-signer'
 import { CertPage } from './CertPage'
 import type { useVault } from '../modules/cert-vault/useVault'
@@ -343,7 +342,8 @@ export function SignPage({ vault }: { vault: Vault }) {
  */
 function StampPaper({ appearance }: { appearance: SignatureAppearance }) {
   const [ref, width] = useContainerWidth<HTMLDivElement>()
-  const scale = width > 0 ? width / STAMP_WIDTH : 0
+  const dims = useStampDims(appearance)
+  const scale = width > 0 ? width / dims.width : 0
   return (
     <div ref={ref} className="w-full rounded-xl border border-dashed border-brand-500/70 bg-white">
       {scale > 0 && <StampPreview appearance={appearance} scale={scale} />}

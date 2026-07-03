@@ -1,9 +1,28 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { wrapText, buildStampLines, STAMP_NOTE_SIZE } from './appearance'
+import { wrapText, buildStampLines, splitName, STAMP_NOTE_SIZE } from './appearance'
 
 // Medidor determinista: 1 unidad por carácter (facilita comprobar la envoltura).
 const byChars = (t: string) => t.length
+
+describe('splitName', () => {
+  it('separa 2 nombres y 2 apellidos en dos filas', () => {
+    expect(splitName('PEDRO CLETO SEGURA OCHOA')).toEqual(['PEDRO CLETO', 'SEGURA OCHOA'])
+  })
+
+  it('con 3 palabras deja los 2 apellidos abajo', () => {
+    expect(splitName('ANA TORRES VERA')).toEqual(['ANA', 'TORRES VERA'])
+  })
+
+  it('con 2 palabras o menos queda en una sola fila', () => {
+    expect(splitName('ANA TORRES')).toEqual(['ANA TORRES'])
+    expect(splitName('MADONNA')).toEqual(['MADONNA'])
+  })
+
+  it('ignora espacios repetidos y bordes', () => {
+    expect(splitName('  PEDRO  CLETO   SEGURA  OCHOA ')).toEqual(['PEDRO CLETO', 'SEGURA OCHOA'])
+  })
+})
 
 describe('wrapText', () => {
   it('envuelve por palabras respetando el ancho', () => {
