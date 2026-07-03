@@ -40,6 +40,18 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Algunos hostings sirven .mjs como application/octet-stream y el navegador
+        // rechaza el module script (el worker de pdf.js). Emitimos esos assets como .js.
+        assetFileNames: (assetInfo) =>
+          assetInfo.names?.some((n) => n.endsWith('.mjs'))
+            ? 'assets/[name]-[hash].js'
+            : 'assets/[name]-[hash][extname]',
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
