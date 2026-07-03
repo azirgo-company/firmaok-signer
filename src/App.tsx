@@ -34,7 +34,7 @@ export default function App() {
             <img
               src="/logo-firmaok-light.webp"
               alt="FirmaOK"
-              className="h-14 w-auto dark:hidden"
+              className="h-8 w-auto dark:hidden"
             />
             <img
               src="/firma-ok-header.png"
