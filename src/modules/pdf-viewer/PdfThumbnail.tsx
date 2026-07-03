@@ -53,8 +53,8 @@ export function PdfThumbnail({ pdfBytes, width = 360 }: Props) {
     let cancelled = false
     pdf.getPageSize(page).then((dims) => {
       if (cancelled || !canvasRef.current) return
-      return pdf.renderPage(page, canvas, targetWidth / dims.width).then(() => {
-        if (!cancelled) setSize({ width: canvas.width, height: canvas.height })
+      return pdf.renderPage(page, canvas, targetWidth / dims.width).then((cssSize) => {
+        if (!cancelled) setSize(cssSize)
       })
     })
     return () => {

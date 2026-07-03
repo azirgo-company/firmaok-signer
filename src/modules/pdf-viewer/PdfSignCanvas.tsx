@@ -69,10 +69,10 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
     pdf.getPageSize(page).then((size) => {
       if (cancelled || !canvasRef.current) return
       const fitScale = Math.min(1.6, Math.max(0.2, outerWidth / size.width))
-      return pdf.renderPage(page, canvas, fitScale).then(() => {
+      return pdf.renderPage(page, canvas, fitScale).then((cssSize) => {
         if (cancelled) return
         setScale(fitScale)
-        setCanvasSize({ width: canvas.width, height: canvas.height })
+        setCanvasSize(cssSize)
       })
     })
     return () => {

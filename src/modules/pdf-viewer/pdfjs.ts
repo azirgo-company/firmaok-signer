@@ -11,7 +11,16 @@ export { pdfjsLib }
 export interface LoadedPdf {
   numPages: number
   getPageSize(pageNumber: number): Promise<{ width: number; height: number }>
-  renderPage(pageNumber: number, canvas: HTMLCanvasElement, scale: number): Promise<void>
+  /**
+   * Renderiza la página en el canvas a `scale` (px CSS por punto PDF). Internamente
+   * dibuja a la densidad real del dispositivo (devicePixelRatio) para que no se vea
+   * borroso en móviles; devuelve el tamaño CSS resultante para el layout.
+   */
+  renderPage(
+    pageNumber: number,
+    canvas: HTMLCanvasElement,
+    scale: number,
+  ): Promise<{ width: number; height: number }>
   destroy(): void
 }
 
@@ -83,12 +92,21 @@ export async function loadPdf(bytes: Uint8Array): Promise<LoadedPdf> {
     },
     async renderPage(pageNumber, canvas, scale) {
       const page = await doc.getPage(pageNumber)
-      const viewport = page.getViewport({ scale })
+      // Tope de 3× para acotar la memoria del canvas en documentos grandes.
+      const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3)
+      const viewport = page.getViewport({ scale: scale * dpr })
       const ctx = canvas.getContext('2d')
       if (!ctx) throw new Error('No se pudo obtener el contexto del canvas.')
       canvas.width = Math.floor(viewport.width)
       canvas.height = Math.floor(viewport.height)
+      const cssSize = {
+        width: Math.floor(viewport.width / dpr),
+        height: Math.floor(viewport.height / dpr),
+      }
+      canvas.style.width = `${cssSize.width}px`
+      canvas.style.height = `${cssSize.height}px`
       await page.render({ canvas, canvasContext: ctx, viewport }).promise
+      return cssSize
     },
     destroy() {
       void (doc as { destroy?: () => void }).destroy?.()
