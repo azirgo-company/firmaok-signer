@@ -50,9 +50,9 @@ export const STAMP_HEIGHT = 96
 // Tope del QR: la altura útil del sello.
 export const STAMP_QR_MAX = STAMP_HEIGHT - STAMP_PAD * 2
 
-/** Tamaño del QR del sello: 1.5× el alto del bloque de texto (igual en PDF y preview). */
+/** Tamaño del QR del sello: 1.2× el alto del bloque de texto (igual en PDF y preview). */
 export function stampQrSize(lines: StampLine[]): number {
-  return Math.min(stampBlockHeight(lines) * 1.5, STAMP_QR_MAX)
+  return Math.min(stampBlockHeight(lines) * 1.2, STAMP_QR_MAX)
 }
 // Tamaño de fuente de las líneas de nota.
 export const STAMP_NOTE_SIZE = 6.6
