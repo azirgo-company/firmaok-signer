@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
-// FirmaOK Signer — PWA 100% offline. El service worker precachea TODOS los assets
+// Firmador FirmaOK — PWA 100% offline. El service worker precachea TODOS los assets
 // (incluido el worker de pdf.js) para que la app firme y valide sin conexión.
 export default defineConfig({
   plugins: [
@@ -24,7 +24,7 @@ export default defineConfig({
       },
       includeAssets: ['icon.svg'],
       manifest: {
-        name: 'FirmaOK Signer',
+        name: 'Firmador FirmaOK',
         short_name: 'FirmaOK',
         description: 'Firma y valida documentos PDF 100% offline. Tus datos nunca salen del dispositivo.',
         theme_color: '#2563eb',

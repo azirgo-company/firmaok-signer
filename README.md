@@ -1,4 +1,4 @@
-# FirmaOK Signer
+# Firmador FirmaOK
 
 PWA **100% offline** para **firmar** y **validar** documentos PDF en Ecuador. El certificado
 (.p12), su clave privada y los documentos **nunca salen del dispositivo**. Firma **PAdES**
@@ -9,8 +9,8 @@ con derecho de supresión).
 
 - **Firma PAdES-B visible** (recuadro estilo FirmaEC, posición arrastrable, multipágina).
 - **Validación offline** de firmas: firmante, CA emisora, fecha, integridad, cobertura.
-- **Certificado persistente y cifrado**: se importa una vez; se desbloquea con **biometría
-  (WebAuthn PRF)** o **PIN**. La contraseña del .p12 no se vuelve a pedir.
+- **Certificado persistente y cifrado**: se importa una vez; se desbloquea con una
+  **contraseña maestra** (Argon2id). La contraseña del .p12 no se vuelve a pedir.
 - **Clave de firma no extraíble** (WebCrypto): inmune a exfiltración por XSS una vez importada.
 - **Offline real**: service worker (Workbox) precachea todo, incluido el worker de pdf.js.
 
@@ -18,13 +18,13 @@ con derecho de supresión).
 
 Vite + React + TypeScript · Tailwind v4 · vite-plugin-pwa · node-forge (lee .p12) ·
 PKI.js + WebCrypto (CMS PAdES) · pdf-lib + @signpdf (placeholder/ByteRange) · pdf.js (render +
-extracción) · idb (IndexedDB) · WebAuthn PRF (biometría) · react-rnd (recuadro de firma).
+extracción) · idb (IndexedDB) · Argon2id (contraseña maestra) · react-rnd (recuadro de firma).
 
 ## Arquitectura (`src/modules`)
 
 | Módulo | Responsabilidad |
 |---|---|
-| `cert-vault` | Parseo .p12, clave no extraíble, cifrado AES-GCM (PRF/PIN), IndexedDB, unlock/wipe |
+| `cert-vault` | Parseo .p12, clave no extraíble, cifrado AES-GCM (contraseña maestra + Argon2id), IndexedDB, unlock/wipe |
 | `crypto-core` | CMS SignedData PAdES (content-type, message-digest, signing-time, signing-cert-v2) |
 | `pdf-signer` | Apariencia visible + placeholder + ByteRange + firma con WebCrypto |
 | `pdf-validator` | Extracción de firmas (Uint8Array, sin Buffer) + verificación con PKI.js |
