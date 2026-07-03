@@ -3,20 +3,10 @@ import { Rnd } from 'react-rnd'
 import { ChevronLeft, ChevronRight, FileWarning, RotateCcw } from 'lucide-react'
 import { loadPdf, type LoadedPdf } from './pdfjs'
 import { useContainerWidth } from './useContainerWidth'
+import { StampPreview } from './StampPreview'
 import { Skeleton } from '../../components/ui'
 import type { SignaturePosition, SignatureAppearance } from '../pdf-signer'
-import {
-  buildStampLines,
-  generateQrDataUrl,
-  getHelveticaMeasurer,
-  stampBlockHeight,
-  stampLineColor,
-  STAMP_LEAD,
-  STAMP_PAD,
-  STAMP_QR_GAP,
-  STAMP_WIDTH,
-  STAMP_HEIGHT,
-} from '../pdf-signer/appearance'
+import { STAMP_WIDTH, STAMP_HEIGHT } from '../pdf-signer/appearance'
 
 // Tamaño FIJO del sello en puntos PDF (no redimensionable; solo se arrastra).
 const SIG_W_PT = STAMP_WIDTH
@@ -44,26 +34,9 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
   const [pos, setPos] = useState({ x: 24, y: 24 })
 
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-  useEffect(() => {
-    generateQrDataUrl().then(setQrDataUrl).catch(() => {})
-  }, [])
-
-  // Medidor de Helvetica (para envolver la nota igual que en el PDF); carga async.
-  const [measure, setMeasure] = useState<((t: string, size: number) => number) | null>(null)
-  useEffect(() => {
-    getHelveticaMeasurer()
-      .then((m) => setMeasure(() => m))
-      .catch(() => {})
-  }, [])
-
   // Tamaño del recuadro en px de pantalla (derivado del tamaño fijo en puntos).
   const boxW = SIG_W_PT * scale
   const boxH = SIG_H_PT * scale
-
-  // Receta del sello (idéntica al PDF), escalada a px de pantalla.
-  const lines = preview ? buildStampLines(preview, new Date(), measure ?? undefined) : []
-  const blockH = stampBlockHeight(lines)
 
   useEffect(() => {
     let active = true
@@ -190,41 +163,7 @@ export function PdfSignCanvas({ pdfBytes, onPositionChange, preview }: Props) {
                 className="cursor-move border border-dashed border-brand-500/70"
               >
                 {/* Preview idéntico al sello real (QR + texto, mismas dimensiones, escalado). */}
-                <div
-                  className="flex h-full items-center"
-                  style={{
-                    paddingLeft: STAMP_PAD * scale,
-                    paddingRight: STAMP_PAD * scale,
-                    gap: STAMP_QR_GAP * scale,
-                  }}
-                >
-                  {qrDataUrl && (
-                    <img
-                      src={qrDataUrl}
-                      alt=""
-                      className="shrink-0"
-                      style={{ width: blockH * scale, height: blockH * scale }}
-                    />
-                  )}
-                  <div
-                    className="flex min-w-0 flex-col justify-center"
-                    style={{ gap: STAMP_LEAD * scale }}
-                  >
-                    {lines.map((l, i) => (
-                      <span
-                        key={i}
-                        className={`block truncate ${l.bold ? 'font-bold' : ''}`}
-                        style={{
-                          fontSize: l.size * scale,
-                          lineHeight: 1,
-                          color: stampLineColor(l.faded),
-                        }}
-                      >
-                        {l.text}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                {preview && <StampPreview appearance={preview} scale={scale} />}
               </Rnd>
             )}
           </div>

@@ -9,13 +9,18 @@ import {
   IdCard,
   Check,
   CalendarDays,
+  BriefcaseBusiness,
+  ZoomIn,
 } from 'lucide-react'
 import { CalendarX2 } from 'lucide-react'
-import { Alert, Badge, Button, Card, Input, Spinner } from '../components/ui'
+import { Alert, Badge, Button, Card, Input, Modal, Spinner } from '../components/ui'
 import { downloadBytes, readFileBytes } from '../lib/file'
 import { formatDate } from '../lib/date'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
-import { signPdf, type SignaturePosition } from '../modules/pdf-signer'
+import { StampPreview } from '../modules/pdf-viewer/StampPreview'
+import { useContainerWidth } from '../modules/pdf-viewer/useContainerWidth'
+import { STAMP_WIDTH } from '../modules/pdf-signer/appearance'
+import { signPdf, type SignaturePosition, type SignatureAppearance } from '../modules/pdf-signer'
 import { CertPage } from './CertPage'
 import type { useVault } from '../modules/cert-vault/useVault'
 
@@ -37,6 +42,8 @@ export function SignPage({ vault }: { vault: Vault }) {
   const [managing, setManaging] = useState(false)
   // La fecha en el sello es opcional; por defecto no se incluye.
   const [includeDate, setIncludeDate] = useState(false)
+  // El cargo (persona jurídica) también es opcional; por defecto no se incluye.
+  const [includePosition, setIncludePosition] = useState(false)
   // Nota libre opcional en el sello (máximo 2 líneas).
   const [notes, setNotes] = useState('')
 
@@ -57,7 +64,7 @@ export function SignPage({ vault }: { vault: Vault }) {
         identification: u.subject.identification,
         isCompany: u.subject.personType === 'juridica',
         companyName: u.subject.companyName,
-        position: u.subject.position,
+        position: includePosition ? u.subject.position : undefined,
         companyRuc: u.subject.companyRuc,
         includeDate,
         notes,
@@ -262,6 +269,8 @@ export function SignPage({ vault }: { vault: Vault }) {
               </Alert>
             )}
 
+            {signerAppearance && <StampPreviewCard appearance={signerAppearance} />}
+
             <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
               <input
                 type="checkbox"
@@ -274,6 +283,21 @@ export function SignPage({ vault }: { vault: Vault }) {
                 Incluir la fecha actual en la firma
               </span>
             </label>
+
+            {u.subject.personType === 'juridica' && u.subject.position && (
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
+                <input
+                  type="checkbox"
+                  checked={includePosition}
+                  onChange={(e) => setIncludePosition(e.target.checked)}
+                  className="h-4 w-4 shrink-0 accent-brand-600"
+                />
+                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
+                  <BriefcaseBusiness className="h-4 w-4 text-slate-400" strokeWidth={2} />
+                  Incluir el cargo en la firma
+                </span>
+              </label>
+            )}
 
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="flex items-center justify-between font-medium text-slate-700 dark:text-slate-200">
@@ -307,6 +331,53 @@ export function SignPage({ vault }: { vault: Vault }) {
             </p>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Sello sobre "papel" blanco, escalado al ancho disponible del contenedor.
+ * Fondo blanco fijo (simula el documento) para que el texto oscuro se lea
+ * también en modo oscuro.
+ */
+function StampPaper({ appearance }: { appearance: SignatureAppearance }) {
+  const [ref, width] = useContainerWidth<HTMLDivElement>()
+  const scale = width > 0 ? width / STAMP_WIDTH : 0
+  return (
+    <div ref={ref} className="w-full rounded-xl border border-dashed border-brand-500/70 bg-white">
+      {scale > 0 && <StampPreview appearance={appearance} scale={scale} />}
+    </div>
+  )
+}
+
+/**
+ * Preview estático del sello en el panel lateral: el MISMO componente que se
+ * arrastra sobre el PDF. Al hacer clic se abre ampliado en un diálogo.
+ */
+function StampPreviewCard({ appearance }: { appearance: SignatureAppearance }) {
+  const [zoomed, setZoomed] = useState(false)
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="flex items-center justify-between text-sm font-medium text-slate-700 dark:text-slate-200">
+        Así se verá tu firma
+        <span className="flex items-center gap-1 text-xs font-normal text-slate-400">
+          <ZoomIn className="h-3.5 w-3.5" strokeWidth={2} />
+          Ampliar
+        </span>
+      </span>
+      <button
+        type="button"
+        onClick={() => setZoomed(true)}
+        title="Ver la firma ampliada"
+        className="cursor-zoom-in rounded-xl outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand-500/40"
+      >
+        <StampPaper appearance={appearance} />
+      </button>
+      {zoomed && (
+        <Modal title="Así se verá tu firma" onClose={() => setZoomed(false)}>
+          <StampPaper appearance={appearance} />
+        </Modal>
       )}
     </div>
   )
