@@ -40,21 +40,21 @@ export function noteLines(notes?: string): string[] {
 export const VERIFY_URL = 'https://firmaok.com.ec/'
 
 // Receta del sello (compartida entre el PDF real y el preview en pantalla).
-export const STAMP_PAD = 3
-export const STAMP_LEAD = 1.1
-export const STAMP_QR_GAP = 4
+export const STAMP_PAD = 6
+export const STAMP_LEAD = 2.2
+export const STAMP_QR_GAP = 8
 // Dimensiones fijas del sello en puntos PDF (coinciden con el recuadro del preview).
-export const STAMP_WIDTH = 175
-export const STAMP_HEIGHT = 48
-// Tope del QR: la altura útil del sello (el tamaño real es el alto del bloque de texto).
+export const STAMP_WIDTH = 350
+export const STAMP_HEIGHT = 96
+// Tope del QR: la altura útil del sello.
 export const STAMP_QR_MAX = STAMP_HEIGHT - STAMP_PAD * 2
 
-/** Tamaño del QR del sello: el MISMO alto que el bloque de texto (igual en PDF y preview). */
+/** Tamaño del QR del sello: 1.5× el alto del bloque de texto (igual en PDF y preview). */
 export function stampQrSize(lines: StampLine[]): number {
-  return Math.min(stampBlockHeight(lines), STAMP_QR_MAX)
+  return Math.min(stampBlockHeight(lines) * 1.5, STAMP_QR_MAX)
 }
 // Tamaño de fuente de las líneas de nota.
-export const STAMP_NOTE_SIZE = 3.3
+export const STAMP_NOTE_SIZE = 6.6
 
 // Medidor de ancho con las métricas REALES de Helvetica, cacheado. Se usa tanto en
 // el PDF como en el preview para que las notas se envuelvan exactamente igual.
@@ -134,17 +134,17 @@ export function buildStampLines(
   signingTime: Date,
   measure?: (text: string, size: number) => number,
 ): StampLine[] {
-  const head: StampLine[] = [{ text: a.name, size: 4, bold: true }]
+  const head: StampLine[] = [{ text: a.name, size: 8, bold: true }]
   if (a.isCompany) {
-    if (a.companyName) head.push({ text: a.companyName, size: 3.6, bold: true })
-    if (a.position) head.push({ text: a.position, size: 3.4 })
-    if (a.companyRuc) head.push({ text: `RUC ${a.companyRuc}`, size: 3.4 })
+    if (a.companyName) head.push({ text: a.companyName, size: 7.2, bold: true })
+    if (a.position) head.push({ text: a.position, size: 6.8 })
+    if (a.companyRuc) head.push({ text: `RUC ${a.companyRuc}`, size: 6.8 })
   } else if (a.identification) {
-    head.push({ text: `CI ${a.identification}`, size: 3.4 })
+    head.push({ text: `CI ${a.identification}`, size: 6.8 })
   }
-  if (a.includeDate) head.push({ text: formatDate(signingTime), size: 3.4 })
+  if (a.includeDate) head.push({ text: formatDate(signingTime), size: 6.8 })
 
-  const footer: StampLine = { text: 'Firmado con firmaok.com.ec', size: 3.1, faded: true }
+  const footer: StampLine = { text: 'Firmado con firmaok.com.ec', size: 6.2, faded: true }
 
   const notesText = (a.notes ?? '').replace(/\s+/g, ' ').trim()
   if (!notesText) return [...head, footer]
