@@ -65,39 +65,48 @@ export function StampPreview({
   const width = stampWidth(lines, measure ?? undefined)
   const height = stampHeight(lines)
 
+  // Se renderiza internamente a 4× y se reduce con transform: los navegadores
+  // móviles imponen tamaños mínimos / escalado de accesibilidad a fuentes muy
+  // pequeñas y recortaban las letras; el transform no está sujeto a eso.
+  const rs = 4
+
   return (
-    <div
-      className="flex items-center text-left"
-      style={{
-        width: width * scale,
-        height: height * scale,
-        paddingLeft: STAMP_PAD * scale,
-        paddingRight: STAMP_PAD * scale,
-        gap: STAMP_QR_GAP * scale,
-      }}
-    >
-      {qrDataUrl && (
-        <img
-          src={qrDataUrl}
-          alt=""
-          className="shrink-0"
-          style={{ width: qrSize * scale, height: qrSize * scale }}
-        />
-      )}
-      <div className="flex min-w-0 flex-col justify-center" style={{ gap: STAMP_LEAD * scale }}>
-        {lines.map((l, i) => (
-          <span
-            key={i}
-            className={`block truncate ${l.bold ? 'font-bold' : ''}`}
-            style={{
-              fontSize: l.size * scale,
-              lineHeight: 1,
-              color: stampLineColor(l.faded),
-            }}
-          >
-            {l.text}
-          </span>
-        ))}
+    <div style={{ width: width * scale, height: height * scale, overflow: 'hidden' }}>
+      <div
+        className="flex items-center text-left"
+        style={{
+          width: width * rs,
+          height: height * rs,
+          paddingLeft: STAMP_PAD * rs,
+          paddingRight: STAMP_PAD * rs,
+          gap: STAMP_QR_GAP * rs,
+          transform: `scale(${scale / rs})`,
+          transformOrigin: 'top left',
+        }}
+      >
+        {qrDataUrl && (
+          <img
+            src={qrDataUrl}
+            alt=""
+            className="shrink-0"
+            style={{ width: qrSize * rs, height: qrSize * rs }}
+          />
+        )}
+        <div className="flex min-w-0 flex-col justify-center" style={{ gap: STAMP_LEAD * rs }}>
+          {lines.map((l, i) => (
+            <span
+              key={i}
+              className={`block truncate ${l.bold ? 'font-bold' : ''}`}
+              style={{
+                fontSize: l.size * rs,
+                lineHeight: 1,
+                color: stampLineColor(l.faded),
+              }}
+            >
+              {l.text}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   )

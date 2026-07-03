@@ -61,12 +61,11 @@ export async function signPdf(req: SignPdfRequest): Promise<Uint8Array> {
     signingTime,
     signatureLength: SIGNATURE_LENGTH,
     subFilter: SUBFILTER_ETSI_CADES_DETACHED,
-    widgetRect: [
-      req.position.x,
-      req.position.y,
-      req.position.x + req.position.width,
-      req.position.y + req.position.height,
-    ],
+    // Widget invisible (rect 0×0): el sello visible ya está dibujado en el
+    // contenido de la página. Un widget del tamaño del sello hace que varios
+    // visores (Drive, Adobe móvil) lo pinten con el resaltado celeste de
+    // campos de formulario, porque su stream de apariencia va vacío.
+    widgetRect: [0, 0, 0, 0],
   })
 
   const withPlaceholder = await pdfDoc.save({ useObjectStreams: false })
