@@ -18,7 +18,7 @@ export function InstallButton() {
       <button
         type="button"
         onClick={() => (canInstall ? promptInstall() : setShowIos(true))}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/10 px-2.5 py-1.5 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-500/20 dark:text-brand-100"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/10 px-2.5 py-1.5 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-500/20 dark:border-brand-500/50 dark:bg-brand-500/15 dark:text-brand-100"
       >
         <Download className="h-3.5 w-3.5" strokeWidth={2} />
         Descargar
