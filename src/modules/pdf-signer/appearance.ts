@@ -159,7 +159,7 @@ export function buildStampLines(
   }
   if (a.includeDate) head.push({ text: formatDate(signingTime), size: 5.2 })
 
-  const footer: StampLine = { text: 'Firmado con firmaok.com.ec', size: 4.7, faded: true }
+  const footer: StampLine = { text: 'Firmado con firmaok.com.ec', size: 4, faded: true }
 
   const notesText = (a.notes ?? '').replace(/\s+/g, ' ').trim()
   if (!notesText) return [...head, footer]
