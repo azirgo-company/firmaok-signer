@@ -21,9 +21,15 @@ export function makePdfFile(bytes: Uint8Array, filename: string, mime = 'applica
   return new File([bytes as BlobPart], filename, { type: mime })
 }
 
-/** true si el navegador puede abrir la hoja nativa de compartir con este archivo (móvil). */
-export function canShareFile(file: File): boolean {
-  return typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })
+/**
+ * true si el navegador puede abrir la hoja nativa de compartir con archivos PDF.
+ * Soportado en iOS Safari 15+, Chrome/Edge Android y Chrome/Edge de escritorio
+ * (Windows/macOS). Se sondea con un File dummy porque canShare exige uno real.
+ */
+export function canSharePdfFiles(): boolean {
+  if (typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return false
+  const probe = new File([new Uint8Array([0x25])], 'probe.pdf', { type: 'application/pdf' })
+  return navigator.canShare({ files: [probe] })
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   UploadCloud,
   KeyRound,
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { CalendarX2 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Input, Modal, Spinner } from '../components/ui'
-import { canShareFile, downloadBytes, makePdfFile, readFileBytes, shareFile } from '../lib/file'
+import { canSharePdfFiles, downloadBytes, makePdfFile, readFileBytes, shareFile } from '../lib/file'
 import { formatDate } from '../lib/date'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
 import { StampPreview, useStampDims } from '../modules/pdf-viewer/StampPreview'
@@ -36,11 +36,15 @@ export function SignPage({ vault }: { vault: Vault }) {
   const [position, setPosition] = useState<SignaturePosition | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  // Acción de firma en curso ('download' | 'share') para el estado de los botones.
+  const [busyAction, setBusyAction] = useState<'download' | 'share' | null>(null)
   // PDF ya firmado, retenido para poder compartirlo como archivo con la hoja
-  // nativa (navigator.share). Compartir la descarga desde el visor del
-  // navegador pega la URL blob: como texto, y ese enlace no sirve fuera de
-  // este dispositivo.
+  // nativa (navigator.share) o volver a descargarlo sin re-firmar. Compartir
+  // la descarga desde el visor del navegador pega la URL blob: como texto, y
+  // ese enlace no sirve fuera de este dispositivo.
   const [signedFile, setSignedFile] = useState<File | null>(null)
+  const shareSupported = useMemo(() => canSharePdfFiles(), [])
   const [pin, setPin] = useState('')
   // Gestión de certificados (importar / ver detalles / borrar) embebida en este tab.
   const [managing, setManaging] = useState(false)
@@ -99,13 +103,15 @@ export function SignPage({ vault }: { vault: Vault }) {
   async function handlePickPdf(file: File) {
     setSignedFile(null)
     setError(null)
+    setNotice(null)
     setPdf({ name: file.name, bytes: await readFileBytes(file) })
   }
 
-  async function handleSign() {
+  async function handleSign(action: 'download' | 'share') {
     if (!pdf || !position || !u) return
-    setBusy(true)
+    setBusyAction(action)
     setError(null)
+    setNotice(null)
     try {
       const signed = await signPdf({
         pdfBytes: pdf.bytes,
@@ -114,12 +120,23 @@ export function SignPage({ vault }: { vault: Vault }) {
         position,
       })
       const filename = pdf.name.replace(/\.pdf$/i, '') + '-firmado.pdf'
-      downloadBytes(signed, filename)
-      setSignedFile(makePdfFile(signed, filename))
+      const file = makePdfFile(signed, filename)
+      setSignedFile(file)
+      if (action === 'download') {
+        downloadBytes(signed, filename)
+      } else {
+        try {
+          await shareFile(file)
+        } catch {
+          // Algunos navegadores exigen que compartir ocurra justo tras el toque;
+          // si la firma tardó demasiado queda el botón del panel de éxito.
+          setNotice('El PDF ya está firmado. Toca "Compartir PDF firmado" para abrir la hoja de compartir.')
+        }
+      }
     } catch (e) {
       setError((e as Error).message)
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
@@ -128,8 +145,13 @@ export function SignPage({ vault }: { vault: Vault }) {
     try {
       await shareFile(signedFile)
     } catch {
-      setError('No se pudo abrir la hoja de compartir. Comparte el PDF descargado desde tus archivos.')
+      setError('No se pudo abrir la hoja de compartir. Descarga el PDF y compártelo desde tus archivos.')
     }
+  }
+
+  async function handleDownloadAgain() {
+    if (!signedFile) return
+    downloadBytes(new Uint8Array(await signedFile.arrayBuffer()), signedFile.name)
   }
 
   // No desbloqueado aún: selector + desbloqueo.
@@ -274,19 +296,24 @@ export function SignPage({ vault }: { vault: Vault }) {
 
           <div className="flex min-w-0 flex-col gap-4">
             {error && <Alert kind="error">{error}</Alert>}
+            {notice && <Alert kind="info">{notice}</Alert>}
             {signedFile && (
               <Alert kind="success">
                 <div className="flex flex-col gap-2.5">
                   <span className="inline-flex items-center gap-1.5">
                     <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-                    PDF firmado y descargado.
+                    PDF firmado correctamente.
                   </span>
-                  {canShareFile(signedFile) && (
+                  {shareSupported && (
                     <Button onClick={handleShare} className="w-full justify-center">
                       <Share2 className="h-4 w-4" strokeWidth={2} />
                       Compartir PDF firmado
                     </Button>
                   )}
+                  <Button variant="ghost" onClick={handleDownloadAgain} className="w-full justify-center">
+                    <Download className="h-4 w-4" strokeWidth={2} />
+                    Descargar PDF firmado
+                  </Button>
                 </div>
               </Alert>
             )}
@@ -338,15 +365,34 @@ export function SignPage({ vault }: { vault: Vault }) {
               />
             </label>
 
-            <Button onClick={handleSign} disabled={busy || !position}>
-              {busy ? <Spinner className="h-4 w-4" /> : <Download className="h-4 w-4" strokeWidth={2} />}
-              {busy ? 'Firmando…' : 'Firmar y descargar'}
+            {shareSupported && (
+              <Button onClick={() => handleSign('share')} disabled={!!busyAction || !position}>
+                {busyAction === 'share' ? (
+                  <Spinner className="h-4 w-4" />
+                ) : (
+                  <Share2 className="h-4 w-4" strokeWidth={2} />
+                )}
+                {busyAction === 'share' ? 'Firmando…' : 'Firmar y compartir'}
+              </Button>
+            )}
+            <Button
+              variant={shareSupported ? 'ghost' : 'primary'}
+              onClick={() => handleSign('download')}
+              disabled={!!busyAction || !position}
+            >
+              {busyAction === 'download' ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <Download className="h-4 w-4" strokeWidth={2} />
+              )}
+              {busyAction === 'download' ? 'Firmando…' : 'Firmar y descargar'}
             </Button>
             <Button
               variant="ghost"
               onClick={() => {
                 setPdf(null)
                 setSignedFile(null)
+                setNotice(null)
               }}
             >
               <RotateCcw className="h-4 w-4" strokeWidth={2} />
