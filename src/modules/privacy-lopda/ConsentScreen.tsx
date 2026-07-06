@@ -35,9 +35,9 @@ export function ConsentScreen({ onAccept }: Props) {
       <div className="w-full max-w-xl">
         <div className="mb-8 flex flex-col items-center text-center">
           <img
-            src="/logo-firmaok-white.webp"
+            src="/firma-ok-header.png"
             alt="FirmaOK"
-            className="mb-4 h-12 w-auto rounded-lg bg-white"
+            className="mb-4 h-12 w-auto"
           />
           <p className="text-[15px] text-slate-500">
             Firma y valida PDF — 100% en tu dispositivo
