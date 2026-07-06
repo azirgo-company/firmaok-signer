@@ -11,10 +11,11 @@ import {
   CalendarDays,
   BriefcaseBusiness,
   ZoomIn,
+  Share2,
 } from 'lucide-react'
 import { CalendarX2 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Input, Modal, Spinner } from '../components/ui'
-import { downloadBytes, readFileBytes } from '../lib/file'
+import { canShareFile, downloadBytes, makePdfFile, readFileBytes, shareFile } from '../lib/file'
 import { formatDate } from '../lib/date'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
 import { StampPreview, useStampDims } from '../modules/pdf-viewer/StampPreview'
@@ -35,7 +36,11 @@ export function SignPage({ vault }: { vault: Vault }) {
   const [position, setPosition] = useState<SignaturePosition | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
+  // PDF ya firmado, retenido para poder compartirlo como archivo con la hoja
+  // nativa (navigator.share). Compartir la descarga desde el visor del
+  // navegador pega la URL blob: como texto, y ese enlace no sirve fuera de
+  // este dispositivo.
+  const [signedFile, setSignedFile] = useState<File | null>(null)
   const [pin, setPin] = useState('')
   // Gestión de certificados (importar / ver detalles / borrar) embebida en este tab.
   const [managing, setManaging] = useState(false)
@@ -92,7 +97,7 @@ export function SignPage({ vault }: { vault: Vault }) {
   }
 
   async function handlePickPdf(file: File) {
-    setDone(false)
+    setSignedFile(null)
     setError(null)
     setPdf({ name: file.name, bytes: await readFileBytes(file) })
   }
@@ -108,12 +113,22 @@ export function SignPage({ vault }: { vault: Vault }) {
         appearance: signerAppearance ?? { name: u.subject.commonName },
         position,
       })
-      downloadBytes(signed, pdf.name.replace(/\.pdf$/i, '') + '-firmado.pdf')
-      setDone(true)
+      const filename = pdf.name.replace(/\.pdf$/i, '') + '-firmado.pdf'
+      downloadBytes(signed, filename)
+      setSignedFile(makePdfFile(signed, filename))
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function handleShare() {
+    if (!signedFile) return
+    try {
+      await shareFile(signedFile)
+    } catch {
+      setError('No se pudo abrir la hoja de compartir. Comparte el PDF descargado desde tus archivos.')
     }
   }
 
@@ -259,12 +274,20 @@ export function SignPage({ vault }: { vault: Vault }) {
 
           <div className="flex min-w-0 flex-col gap-4">
             {error && <Alert kind="error">{error}</Alert>}
-            {done && (
+            {signedFile && (
               <Alert kind="success">
-                <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-                  PDF firmado y descargado.
-                </span>
+                <div className="flex flex-col gap-2.5">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+                    PDF firmado y descargado.
+                  </span>
+                  {canShareFile(signedFile) && (
+                    <Button onClick={handleShare} className="w-full justify-center">
+                      <Share2 className="h-4 w-4" strokeWidth={2} />
+                      Compartir PDF firmado
+                    </Button>
+                  )}
+                </div>
               </Alert>
             )}
 
@@ -319,7 +342,13 @@ export function SignPage({ vault }: { vault: Vault }) {
               {busy ? <Spinner className="h-4 w-4" /> : <Download className="h-4 w-4" strokeWidth={2} />}
               {busy ? 'Firmando…' : 'Firmar y descargar'}
             </Button>
-            <Button variant="ghost" onClick={() => setPdf(null)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setPdf(null)
+                setSignedFile(null)
+              }}
+            >
               <RotateCcw className="h-4 w-4" strokeWidth={2} />
               Elegir otro PDF
             </Button>

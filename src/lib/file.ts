@@ -15,3 +15,27 @@ export function downloadBytes(bytes: Uint8Array, filename: string, mime = 'appli
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+/** Envuelve unos bytes como File con nombre y tipo correctos (para compartir). */
+export function makePdfFile(bytes: Uint8Array, filename: string, mime = 'application/pdf'): File {
+  return new File([bytes as BlobPart], filename, { type: mime })
+}
+
+/** true si el navegador puede abrir la hoja nativa de compartir con este archivo (móvil). */
+export function canShareFile(file: File): boolean {
+  return typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })
+}
+
+/**
+ * Comparte el archivo con la hoja nativa del sistema. Así el PDF llega como
+ * adjunto real (sin URL blob: pegada como texto, que fuera de este navegador
+ * es un enlace muerto). Cancelar la hoja no se considera error.
+ */
+export async function shareFile(file: File): Promise<void> {
+  try {
+    await navigator.share({ files: [file] })
+  } catch (e) {
+    if ((e as DOMException).name === 'AbortError') return
+    throw e
+  }
+}
