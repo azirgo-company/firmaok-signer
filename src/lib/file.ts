@@ -35,11 +35,19 @@ export function canSharePdfFiles(): boolean {
 /**
  * Comparte el archivo con la hoja nativa del sistema. Así el PDF llega como
  * adjunto real (sin URL blob: pegada como texto, que fuera de este navegador
- * es un enlace muerto). Cancelar la hoja no se considera error.
+ * es un enlace muerto). `text` acompaña al archivo donde el destino lo admita
+ * (WhatsApp/Telegram lo muestran como mensaje junto al documento). Cancelar
+ * la hoja no se considera error.
  */
-export async function shareFile(file: File): Promise<void> {
+export async function shareFile(file: File, text?: string): Promise<void> {
+  const withText: ShareData = text ? { files: [file], text } : { files: [file] }
+  // Si el navegador no admite archivo+texto juntos, comparte solo el archivo.
+  const data =
+    typeof navigator.canShare === 'function' && !navigator.canShare(withText)
+      ? { files: [file] }
+      : withText
   try {
-    await navigator.share({ files: [file] })
+    await navigator.share(data)
   } catch (e) {
     if ((e as DOMException).name === 'AbortError') return
     throw e

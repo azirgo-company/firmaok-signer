@@ -29,6 +29,10 @@ type Vault = ReturnType<typeof useVault>
 // Tope de la nota del sello (el contenido visible se envuelve a un máx. de 2 líneas).
 const NOTES_MAX = 100
 
+// Mensaje que acompaña al PDF en la hoja de compartir; el https:// hace que el
+// enlace sea clickeable en WhatsApp, correo, etc.
+const SHARE_TEXT = 'Firmado con FirmaOK - https://firmaok.com.ec'
+
 export function SignPage({ vault }: { vault: Vault }) {
   const certs = vault.certificates
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -126,7 +130,7 @@ export function SignPage({ vault }: { vault: Vault }) {
         downloadBytes(signed, filename)
       } else {
         try {
-          await shareFile(file)
+          await shareFile(file, SHARE_TEXT)
         } catch {
           // Algunos navegadores exigen que compartir ocurra justo tras el toque;
           // si la firma tardó demasiado queda el botón del panel de éxito.
@@ -143,7 +147,7 @@ export function SignPage({ vault }: { vault: Vault }) {
   async function handleShare() {
     if (!signedFile) return
     try {
-      await shareFile(signedFile)
+      await shareFile(signedFile, SHARE_TEXT)
     } catch {
       setError('No se pudo abrir la hoja de compartir. Descarga el PDF y compártelo desde tus archivos.')
     }
