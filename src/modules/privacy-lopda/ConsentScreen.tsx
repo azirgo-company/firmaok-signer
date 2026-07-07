@@ -1,8 +1,11 @@
-import { ArrowRight, Lock, ShieldCheck, Trash2, WifiOff } from "lucide-react"
+import { ArrowRight, Lock, Moon, ShieldCheck, Sun, Trash2, WifiOff } from "lucide-react"
 import { Button } from "../../components/ui"
+import type { Theme } from "../../lib/useTheme"
 
 interface Props {
   onAccept: () => void
+  theme: Theme
+  onToggleTheme: () => void
 }
 
 const POINTS = [
@@ -29,15 +32,37 @@ const POINTS = [
 ]
 
 /** Pantalla de consentimiento informado y aviso de privacidad (LOPDA). */
-export function ConsentScreen({ onAccept }: Props) {
+export function ConsentScreen({ onAccept, theme, onToggleTheme }: Props) {
   return (
-    <div className="grid min-h-[100dvh] place-items-center px-4 py-10">
+    <div className="relative grid min-h-[100dvh] place-items-center px-4 py-10">
+      <button
+        onClick={onToggleTheme}
+        aria-label={
+          theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"
+        }
+        title={theme === "dark" ? "Tema claro" : "Tema oscuro"}
+        className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+      >
+        {theme === "dark" ? (
+          <Sun className="h-5 w-5" strokeWidth={2} />
+        ) : (
+          <Moon className="h-5 w-5" strokeWidth={2} />
+        )}
+      </button>
+
       <div className="w-full max-w-xl">
         <div className="mb-8 flex flex-col items-center text-center">
+          {/* Logo a color para fondo claro; versión blanca para tema oscuro.
+              El swap es puro CSS según la clase .dark de <html>. */}
+          <img
+            src="/logo-firmaok-light.webp"
+            alt="FirmaOK"
+            className="mb-4 h-11 w-auto dark:hidden"
+          />
           <img
             src="/firma-ok-header.png"
             alt="FirmaOK"
-            className="mb-4 h-12 w-auto"
+            className="mb-4 hidden h-12 w-auto dark:block"
           />
           <p className="text-[15px] text-slate-500">
             Firma y valida PDF — 100% en tu dispositivo

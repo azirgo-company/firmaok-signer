@@ -22,7 +22,10 @@ export default function App() {
   const [theme, toggleTheme] = useTheme()
   const [showLegal, setShowLegal] = useState(false)
 
-  if (!accepted) return <ConsentScreen onAccept={accept} />
+  if (!accepted)
+    return (
+      <ConsentScreen onAccept={accept} theme={theme} onToggleTheme={toggleTheme} />
+    )
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
