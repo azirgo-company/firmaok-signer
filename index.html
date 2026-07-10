@@ -6,7 +6,7 @@
          worker-src blob: para el worker de pdf.js, 'unsafe-inline' en style por estilos inline de React/Tailwind. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' blob: https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta
@@ -19,6 +19,9 @@
       content="Firma y valida documentos PDF 100% offline. Tus datos nunca salen del dispositivo."
     />
     <title>Firmador FirmaOK</title>
+    <!-- Google Analytics (gtag.js). El init vive en /gtag-init.js para no usar 'unsafe-inline' en la CSP. -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-KSELQQ494L"></script>
+    <script src="/gtag-init.js"></script>
     <!-- Schema.org (JSON-LD). Es un data block, no script ejecutable: la CSP no lo bloquea. -->
     <script type="application/ld+json">
       {
