@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Skeleton } from '../components/ui'
 import { readFileBytes } from '../lib/file'
+import { trackEvent } from '../lib/analytics'
 import { formatDateTime } from '../lib/date'
 import { validatePdf, type SignatureReport } from '../modules/pdf-validator'
 import { PdfThumbnail } from '../modules/pdf-viewer/PdfThumbnail'
@@ -32,7 +33,9 @@ export function ValidatePage() {
       const bytes = await readFileBytes(file)
       setPdfBytes(bytes)
       await new Promise((r) => setTimeout(r, 30)) // deja pintar el loading
-      setReports(await validatePdf(bytes))
+      const result = await validatePdf(bytes)
+      setReports(result)
+      trackEvent('pdf_validado', { firmas: result.length })
     } catch (e) {
       setError((e as Error).message)
     } finally {

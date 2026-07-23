@@ -17,6 +17,7 @@ import { CalendarX2 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Input, Modal, Spinner } from '../components/ui'
 import { canSharePdfFiles, downloadBytes, makePdfFile, readFileBytes, shareFile } from '../lib/file'
 import { formatDate } from '../lib/date'
+import { trackEvent } from '../lib/analytics'
 import { PdfSignCanvas } from '../modules/pdf-viewer/PdfSignCanvas'
 import { StampPreview, useStampDims } from '../modules/pdf-viewer/StampPreview'
 import { useContainerWidth } from '../modules/pdf-viewer/useContainerWidth'
@@ -126,6 +127,7 @@ export function SignPage({ vault }: { vault: Vault }) {
       const filename = pdf.name.replace(/\.pdf$/i, '') + '-firmado.pdf'
       const file = makePdfFile(signed, filename)
       setSignedFile(file)
+      trackEvent('pdf_firmado', { metodo: action })
       if (action === 'download') {
         downloadBytes(signed, filename)
       } else {

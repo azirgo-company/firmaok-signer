@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Field, Input, Spinner } from '../components/ui'
 import { readFileBytes } from '../lib/file'
+import { trackEvent } from '../lib/analytics'
 import { formatDate } from '../lib/date'
 import { MASTER_MIN_LENGTH, type CertSummary } from '../modules/cert-vault/vault'
 import type { useVault } from '../modules/cert-vault/useVault'
@@ -90,6 +91,7 @@ function ImportCert({
         certPassword: certPassword || undefined,
         masterPassword: master,
       })
+      trackEvent('p12_guardado')
       onDone()
     } catch (e) {
       setError((e as Error).message)
