@@ -27,8 +27,7 @@ export function LegalNotice({ onClose }: { onClose: () => void }) {
         <p>
           No recopilamos, transmitimos ni vendemos datos personales. Tu certificado se guarda
           <strong> cifrado en tu propio dispositivo</strong>; solo el nombre, el tipo de firmante y
-          la razón social quedan sin cifrar para que puedas identificar tus certificados. No usamos
-          analítica, rastreadores ni servicios de terceros.
+          la razón social quedan sin cifrar para que puedas identificar tus certificados.
         </p>
         <p>
           El sitio se entrega desde un servidor web que, como cualquier sitio, puede registrar datos
@@ -39,6 +38,20 @@ export function LegalNotice({ onClose }: { onClose: () => void }) {
           Conforme a la Ley Orgánica de Protección de Datos Personales, puedes ejercer tus derechos
           de acceso, rectificación y <strong>supresión</strong>: elimina tu certificado y sus datos
           en cualquier momento desde «Firmar › Administrar certificados».
+        </p>
+      </Section>
+
+      <Section title="Analítica de uso (Google Analytics)">
+        <p>
+          Usamos <strong>Google Analytics</strong> para medir el uso de la aplicación: páginas
+          visitadas y eventos agregados como «certificado guardado», «PDF firmado» o «PDF
+          validado». Estos eventos <strong>no incluyen</strong> el contenido de tus documentos, el
+          nombre de tus archivos, tu certificado ni ningún dato personal identificable.
+        </p>
+        <p>
+          Google Analytics puede usar identificadores propios y procesar tu dirección IP conforme a
+          sus políticas. Si bloqueas estos scripts (p. ej. con un bloqueador de anuncios), la
+          aplicación sigue funcionando con normalidad.
         </p>
       </Section>
 

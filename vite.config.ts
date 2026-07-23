@@ -26,7 +26,7 @@ export default defineConfig({
       manifest: {
         name: 'Firmador FirmaOK',
         short_name: 'FirmaOK',
-        description: 'Firma y valida documentos PDF 100% offline. Tus datos nunca salen del dispositivo.',
+        description: 'Firma y valida documentos PDF 100% offline. Tus documentos y certificado nunca salen del dispositivo.',
         theme_color: '#2563eb',
         background_color: '#0f172a',
         display: 'standalone',

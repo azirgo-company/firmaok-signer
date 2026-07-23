@@ -21,8 +21,8 @@ const POINTS = [
   },
   {
     icon: ShieldCheck,
-    title: "Sin rastreo (LOPDA)",
-    body: "Cero analítica y cero terceros. Procesamiento 100% local conforme a la Ley de Protección de Datos.",
+    title: "Privacidad (LOPDP)",
+    body: "Tus documentos y certificado se procesan 100% local. Solo usamos Google Analytics con métricas de uso anónimas, sin datos personales ni documentos.",
   },
   {
     icon: Trash2,

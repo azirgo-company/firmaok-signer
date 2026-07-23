@@ -20,7 +20,7 @@ describe('App', () => {
 
   it('muestra la pantalla de consentimiento LOPDA al iniciar', () => {
     render(<App />)
-    expect(screen.getByText('Sin rastreo (LOPDA)')).toBeInTheDocument()
+    expect(screen.getByText('Privacidad (LOPDP)')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Entiendo y acepto/i })).toBeInTheDocument()
   })
 

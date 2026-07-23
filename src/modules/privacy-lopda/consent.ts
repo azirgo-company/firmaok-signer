@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 
-const CONSENT_KEY = 'firmaok.lopda.consent.v1'
+// v2: se añadió la divulgación de Google Analytics; los usuarios que aceptaron
+// v1 deben volver a ver el aviso actualizado (consentimiento informado LOPDP).
+const CONSENT_KEY = 'firmaok.lopda.consent.v2'
 
 /** Gestiona el consentimiento informado (LOPDA). Se guarda solo localmente. */
 export function useConsent() {

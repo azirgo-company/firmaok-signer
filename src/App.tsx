@@ -102,7 +102,7 @@ export default function App() {
       </main>
 
       <footer className="border-t border-slate-200/70 py-4 text-center text-xs text-slate-400 dark:border-slate-800/70">
-        Tus datos nunca salen de este dispositivo · Firmas PAdES ·{" "}
+        Tus documentos y certificado nunca salen de este dispositivo · Firmas PAdES ·{" "}
         <button
           onClick={() => setShowLegal(true)}
           className="underline hover:text-slate-600"
