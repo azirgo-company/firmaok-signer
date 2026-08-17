@@ -2,9 +2,10 @@ import forge from 'node-forge'
 import { binaryStringToBytes, bytesToBinaryString } from '../../lib/bytes'
 import {
   classifyPerson,
-  EC_FIELD,
-  ecFieldNumber,
-  type EcFields,
+  DN_OID,
+  extractEcFields,
+  isEcCertOid,
+  type CertRawData,
   type PersonType,
 } from '../../lib/ecuador-cert'
 
@@ -35,6 +36,10 @@ export interface CertSubject {
   companyName?: string
   /** RUC de la empresa (jurídica) o personal (natural con RUC). */
   companyRuc?: string
+  /** El RUC se compuso como cédula + "001"; no venía en el certificado. */
+  companyRucDerived?: boolean
+  /** Dirección / localidad del firmante (esquema ecuatoriano o el DN). */
+  address?: string
   /** Tipo de firmante: persona natural / natural con RUC / jurídica. */
   personType?: PersonType
   personTypeLabel?: string
@@ -172,18 +177,32 @@ function readSubject(cert: forge.pki.Certificate): CertSubject {
   }
   const serialNumber = get('serialNumber', '2.5.4.5')
   // La cédula y datos del firmante están en extensiones del esquema EC (.3.N); el
-  // serialNumber del subject puede ser un UUID o traer sufijo. Preferimos la extensión.
-  const ec = readEcFields(cert)
+  // serialNumber del subject puede ser un UUID o traer sufijo. Preferimos la extensión,
+  // pero pasamos también el Subject DN porque hay AC (AppFirmas) que no usan extensiones.
+  const ec = extractEcFields({
+    extensions: readEcExtensions(cert),
+    dn: {
+      cn: get('CN', 'commonName', DN_OID.cn),
+      surname: get('SN', 'surname', DN_OID.surname),
+      serialNumber,
+      locality: get('L', 'localityName', DN_OID.locality),
+      organization: get('O', 'organizationName', DN_OID.organization),
+      givenName: get('GN', 'givenName', DN_OID.givenName),
+      organizationIdentifier: get('organizationIdentifier', DN_OID.organizationIdentifier),
+    },
+  })
   const { type, label } = classifyPerson(ec)
-  const { name } = splitLeadingId(get('CN', 'commonName', '2.5.4.3') ?? 'Desconocido')
+  const { name } = splitLeadingId(get('CN', 'commonName', '2.5.4.3') ?? '')
   return {
-    commonName: name,
+    commonName: name || ec.fullName || 'Desconocido',
     organization: get('O', 'organizationName', '2.5.4.10'),
     serialNumber,
     identification: ec.cedula || serialNumber,
     position: ec.cargo,
     companyName: ec.companyName,
     companyRuc: ec.ruc,
+    companyRucDerived: ec.rucDerived,
+    address: ec.address,
     personType: type,
     personTypeLabel: label,
   }
@@ -196,31 +215,29 @@ function splitLeadingId(cn: string): { name: string } {
 }
 
 /**
- * Lee los campos del esquema ecuatoriano detectando el arco dinámicamente
- * (1.3.6.1.4.1.<PEN>.3.N), válido para cualquier AC acreditada.
+ * Recoge las extensiones del esquema ecuatoriano con su valor ya decodificado a texto.
+ * El arco se detecta dinámicamente (1.3.6.1.4.1.<PEN>[...].3.N), así que vale para
+ * cualquier AC acreditada; la resolución de qué campo gana vive en `extractEcFields`.
  */
-function readEcFields(cert: forge.pki.Certificate): EcFields {
+function readEcExtensions(cert: forge.pki.Certificate): CertRawData['extensions'] {
   const exts = (cert.extensions ?? []) as Array<{ id?: string; value?: unknown }>
-  const fields: EcFields = {}
+  const out: CertRawData['extensions'] = []
   for (const ext of exts) {
-    if (!ext.id || typeof ext.value !== 'string') continue
-    const n = ecFieldNumber(ext.id)
-    if (n === null) continue
-    let value: string | undefined
-    try {
-      const asn1 = forge.asn1.fromDer(ext.value)
-      const raw = typeof asn1.value === 'string' ? asn1.value : undefined
-      value = raw ? decodeDirectoryString(raw, asn1.type as number).trim() || undefined : undefined
-    } catch {
-      value = undefined
-    }
-    if (!value) continue
-    if (n === EC_FIELD.cedula) fields.cedula = value
-    else if (n === EC_FIELD.cargo) fields.cargo = value
-    else if (n === EC_FIELD.razonSocial) fields.companyName = value
-    else if (n === EC_FIELD.ruc) fields.ruc = value
+    if (!ext.id || !isEcCertOid(ext.id) || typeof ext.value !== 'string') continue
+    out.push({ oid: ext.id, value: decodeExtensionText(ext.value) })
   }
-  return fields
+  return out
+}
+
+/** Decodifica el contenido DER de una extensión a texto; undefined si no es una cadena. */
+function decodeExtensionText(der: string): string | undefined {
+  try {
+    const asn1 = forge.asn1.fromDer(der)
+    const raw = typeof asn1.value === 'string' ? asn1.value : undefined
+    return raw ? decodeDirectoryString(raw, asn1.type as number).trim() || undefined : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /**

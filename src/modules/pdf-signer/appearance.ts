@@ -20,6 +20,11 @@ export interface SignatureAppearance {
   companyName?: string
   position?: string
   companyRuc?: string
+  /**
+   * Dirección del firmante según el certificado. No se dibuja en el sello: alimenta el
+   * /Location del diccionario de firma. Si falta, el /Location cae a `companyName`.
+   */
+  location?: string
   /** Añade la fecha/hora de firma al sello. Por defecto no se muestra. */
   includeDate?: boolean
   /** Nota libre del firmante (máximo 2 líneas) mostrada en el sello. */

@@ -3,9 +3,10 @@ import * as asn1js from 'asn1js'
 import { bytesToBinaryString, bytesToHex, toArrayBuffer } from '../../lib/bytes'
 import {
   classifyPerson,
-  EC_FIELD,
-  ecFieldNumber,
-  type EcFields,
+  DN_OID,
+  extractEcFields,
+  isEcCertOid,
+  type CertRawData,
   type PersonType,
 } from '../../lib/ecuador-cert'
 import { ensureCryptoEngine } from '../crypto-core/engine'
@@ -36,6 +37,8 @@ export interface SignatureReport {
   companyName?: string
   /** RUC de la empresa (jurídica) o personal (natural con RUC). */
   companyRuc?: string
+  /** Dirección del firmante leída del certificado (distinta del /Location del PDF). */
+  signerAddress?: string
   /** Tipo de firmante: persona natural / natural con RUC / jurídica. */
   personType?: PersonType
   personTypeLabel?: string
@@ -138,9 +141,21 @@ async function analyzeSignature(
     // En certificados ecuatorianos el CN suele venir como "<cédula> NOMBRE APELLIDOS".
     // Separamos la identificación del nombre para mostrarlos por separado.
     const { name, idFromCn } = splitIdFromName(readName(signerCert.subject, OID_CN))
-    const ec = readEcFields(signerCert)
+    const ec = extractEcFields({
+      extensions: readEcExtensions(signerCert),
+      dn: {
+        cn: readName(signerCert.subject, DN_OID.cn) || undefined,
+        surname: readName(signerCert.subject, DN_OID.surname) || undefined,
+        serialNumber: readName(signerCert.subject, DN_OID.serialNumber) || undefined,
+        locality: readName(signerCert.subject, DN_OID.locality) || undefined,
+        organization: readName(signerCert.subject, DN_OID.organization) || undefined,
+        givenName: readName(signerCert.subject, DN_OID.givenName) || undefined,
+        organizationIdentifier:
+          readName(signerCert.subject, DN_OID.organizationIdentifier) || undefined,
+      },
+    })
     const { type, label } = classifyPerson(ec)
-    report.signerName = name || 'Desconocido'
+    report.signerName = name || ec.fullName || 'Desconocido'
     report.identification = ec.cedula || readName(signerCert.subject, OID_SERIAL) || idFromCn || undefined
     report.organization = readName(signerCert.subject, OID_ORG) || undefined
     report.organizationalUnit = readName(signerCert.subject, OID_OU) || undefined
@@ -151,7 +166,10 @@ async function analyzeSignature(
     report.certFingerprintSha256 = await certFingerprint(signerCert)
     report.position = ec.cargo
     report.companyName = ec.companyName
-    report.companyRuc = ec.ruc
+    // Solo mostramos el RUC acreditado por la AC: el compuesto (cédula + "001") no prueba
+    // inscripción en el SRI y en un reporte de validación se leería como un dato del cert.
+    report.companyRuc = ec.rucDerived ? undefined : ec.ruc
+    report.signerAddress = ec.address
     report.personType = type
     report.personTypeLabel = label
   }
@@ -233,14 +251,14 @@ function splitIdFromName(cn: string): { name: string; idFromCn?: string } {
 }
 
 /**
- * Lee los campos del esquema ecuatoriano detectando el arco dinámicamente
- * (1.3.6.1.4.1.<PEN>.3.N), válido para cualquier AC acreditada.
+ * Recoge las extensiones del esquema ecuatoriano con su valor ya decodificado a texto.
+ * El arco se detecta dinámicamente (1.3.6.1.4.1.<PEN>[...].3.N), así que vale para
+ * cualquier AC acreditada; la resolución de qué campo gana vive en `extractEcFields`.
  */
-function readEcFields(cert: pkijs.Certificate): EcFields {
-  const fields: EcFields = {}
+function readEcExtensions(cert: pkijs.Certificate): CertRawData['extensions'] {
+  const out: CertRawData['extensions'] = []
   for (const ext of cert.extensions ?? []) {
-    const n = ecFieldNumber(ext.extnID)
-    if (n === null) continue
+    if (!isEcCertOid(ext.extnID)) continue
     let value: string | undefined
     try {
       const parsed = asn1js.fromBER(ext.extnValue.valueBlock.valueHexView)
@@ -249,13 +267,9 @@ function readEcFields(cert: pkijs.Certificate): EcFields {
     } catch {
       value = undefined
     }
-    if (!value) continue
-    if (n === EC_FIELD.cedula) fields.cedula = value
-    else if (n === EC_FIELD.cargo) fields.cargo = value
-    else if (n === EC_FIELD.razonSocial) fields.companyName = value
-    else if (n === EC_FIELD.ruc) fields.ruc = value
+    out.push({ oid: ext.extnID, value })
   }
-  return fields
+  return out
 }
 
 function readName(rdn: pkijs.RelativeDistinguishedNames, oid: string): string {

@@ -100,6 +100,35 @@ describe('signPdf + validatePdf (end-to-end)', () => {
     expect(reports[0].identification).toBe('0950194407-040425153037')
   })
 
+  it('el /Location usa la dirección del certificado y cae a la razón social si no hay', async () => {
+    const vault = await makeVault()
+    const pdf = await makeSamplePdf()
+    const base = {
+      pdfBytes: pdf,
+      vault,
+      position: { pageIndex: 0, x: 50, y: 50, width: 220, height: 70 },
+      signingTime: new Date('2026-06-26T15:00:00Z'),
+    }
+
+    const conDireccion = await validatePdf(
+      await signPdf({
+        ...base,
+        appearance: { name: 'X', companyName: 'AZIRGO SA', location: 'GUAYAQUIL' },
+      }),
+    )
+    expect(conDireccion[0].location).toBe('GUAYAQUIL')
+
+    // Sin dirección en el certificado se conserva lo que se mostraba antes.
+    const sinDireccion = await validatePdf(
+      await signPdf({ ...base, appearance: { name: 'X', companyName: 'AZIRGO SA' } }),
+    )
+    expect(sinDireccion[0].location).toBe('AZIRGO SA')
+
+    // Sin ninguno de los dos, el /Location no puede quedar vacío.
+    const sinNada = await validatePdf(await signPdf({ ...base, appearance: { name: 'X' } }))
+    expect(sinNada[0].location).toBe('Ecuador')
+  })
+
   it('descarta coincidencias de /ByteRange que no son un CMS válido (falsos positivos)', async () => {
     const fake = new TextEncoder().encode(
       '%PDF-1.7\n/ByteRange [0 10 30 10]\n/Contents <deadbeef00>\nbasura no-cms\n%%EOF',

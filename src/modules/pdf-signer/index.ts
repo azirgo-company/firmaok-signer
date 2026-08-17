@@ -57,7 +57,10 @@ export async function signPdf(req: SignPdfRequest): Promise<Uint8Array> {
     reason: 'Firmado digitalmente con FirmaOK · firmaok.com.ec',
     contactInfo: req.appearance.identification ?? '',
     name: req.appearance.name,
-    location: req.appearance.companyName ?? 'Ecuador',
+    // Dirección del certificado (esquema EC .3.7/.3.9 o localidad del DN). Si la AC no la
+    // trae, caemos a la razón social (lo que se usaba antes de leer la dirección) y, en
+    // último caso, "Ecuador": el /Location no puede quedar vacío.
+    location: req.appearance.location ?? req.appearance.companyName ?? 'Ecuador',
     signingTime,
     signatureLength: SIGNATURE_LENGTH,
     subFilter: SUBFILTER_ETSI_CADES_DETACHED,

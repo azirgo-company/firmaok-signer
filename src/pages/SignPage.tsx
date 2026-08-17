@@ -78,7 +78,9 @@ export function SignPage({ vault }: { vault: Vault }) {
         isCompany: u.subject.personType === 'juridica',
         companyName: u.subject.companyName,
         position: includePosition ? u.subject.position : undefined,
-        companyRuc: u.subject.companyRuc,
+        // El sello solo muestra el RUC acreditado; el compuesto (cédula + "001") no.
+        companyRuc: u.subject.companyRucDerived ? undefined : u.subject.companyRuc,
+        location: u.subject.address,
         includeDate,
         notes,
       }
@@ -252,7 +254,7 @@ export function SignPage({ vault }: { vault: Vault }) {
               )}
               {u.subject.companyName && <span>· {u.subject.companyName}</span>}
               {u.subject.position && <span>· {u.subject.position}</span>}
-              {u.subject.companyRuc && (
+              {u.subject.companyRuc && !u.subject.companyRucDerived && (
                 <span>
                   · RUC <span className="font-mono">{u.subject.companyRuc}</span>
                 </span>
