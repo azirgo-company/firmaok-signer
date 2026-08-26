@@ -336,19 +336,6 @@ export function SignPage({ vault }: { vault: Vault }) {
             <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
               <input
                 type="checkbox"
-                checked={includeDate}
-                onChange={(e) => setIncludeDate(e.target.checked)}
-                className="h-4 w-4 shrink-0 accent-brand-600"
-              />
-              <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
-                <CalendarDays className="h-4 w-4 text-slate-400" strokeWidth={2} />
-                Incluir la fecha actual en la firma
-              </span>
-            </label>
-
-            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
-              <input
-                type="checkbox"
                 checked={includeQr}
                 onChange={(e) => setIncludeQr(e.target.checked)}
                 className="h-4 w-4 shrink-0 accent-brand-600"
@@ -356,6 +343,19 @@ export function SignPage({ vault }: { vault: Vault }) {
               <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
                 <QrCode className="h-4 w-4 text-slate-400" strokeWidth={2} />
                 Incluir el código QR en la firma
+              </span>
+            </label>
+
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
+              <input
+                type="checkbox"
+                checked={includeDate}
+                onChange={(e) => setIncludeDate(e.target.checked)}
+                className="h-4 w-4 shrink-0 accent-brand-600"
+              />
+              <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
+                <CalendarDays className="h-4 w-4 text-slate-400" strokeWidth={2} />
+                Incluir la fecha actual en la firma
               </span>
             </label>
 
