@@ -27,6 +27,11 @@ export interface SignatureAppearance {
   location?: string
   /** Añade la fecha/hora de firma al sello. Por defecto no se muestra. */
   includeDate?: boolean
+  /**
+   * Muestra el QR en el sello. Por defecto sí. Solo afecta la apariencia visible:
+   * la firma digital del documento es idéntica con o sin QR.
+   */
+  includeQr?: boolean
   /** Nota libre del firmante (máximo 2 líneas) mostrada en el sello. */
   notes?: string
 }
@@ -55,8 +60,12 @@ export const STAMP_HEIGHT = 96
 // Tope del QR: la altura útil del sello.
 export const STAMP_QR_MAX = STAMP_HEIGHT - STAMP_PAD * 2
 
-/** Tamaño del QR del sello: 1.2× el alto del bloque de texto (igual en PDF y preview). */
-export function stampQrSize(lines: StampLine[]): number {
+/**
+ * Tamaño del QR del sello: 1.2× el alto del bloque de texto (igual en PDF y preview).
+ * Con `qr` en false (sello sin QR) devuelve 0.
+ */
+export function stampQrSize(lines: StampLine[], qr = true): number {
+  if (!qr) return 0
   return Math.min(stampBlockHeight(lines) * 1.2, STAMP_QR_MAX)
 }
 // Tamaño de fuente de las líneas de nota.
@@ -173,8 +182,8 @@ export function buildStampLines(
   if (measure) {
     // Ancho a la derecha del QR asumiendo 2 líneas de nota (el máximo).
     const stub: StampLine = { text: '', size: STAMP_NOTE_SIZE }
-    const qrSize = stampQrSize([...head, stub, stub, footer])
-    const textWidth = STAMP_WIDTH - STAMP_PAD * 2 - qrSize - STAMP_QR_GAP
+    const qrSize = stampQrSize([...head, stub, stub, footer], a.includeQr !== false)
+    const textWidth = STAMP_WIDTH - STAMP_PAD * 2 - (qrSize ? qrSize + STAMP_QR_GAP : 0)
     noteTexts = wrapText(notesText, textWidth, (t) => measure(t, STAMP_NOTE_SIZE), 2)
   } else {
     noteTexts = noteLines(a.notes)
@@ -196,17 +205,18 @@ export function stampBlockHeight(lines: StampLine[]): number {
  * Ancho del sello ajustado al contenido: QR + la línea de texto más ancha,
  * con tope en STAMP_WIDTH. Sin medidor cae al ancho máximo.
  */
-export function stampWidth(lines: StampLine[], measure?: StampMeasure): number {
+export function stampWidth(lines: StampLine[], measure?: StampMeasure, qr = true): number {
   if (!measure) return STAMP_WIDTH
   const textW = Math.max(...lines.map((l) => measure(l.text, l.size, l.bold)))
-  const w = STAMP_PAD * 2 + stampQrSize(lines) + STAMP_QR_GAP + textW
+  const qrSize = stampQrSize(lines, qr)
+  const w = STAMP_PAD * 2 + (qrSize ? qrSize + STAMP_QR_GAP : 0) + textW
   // +1pt de holgura para que el redondeo no trunque la línea más ancha.
   return Math.min(STAMP_WIDTH, Math.ceil(w) + 1)
 }
 
 /** Alto del sello ajustado al contenido (el mayor entre texto y QR), con tope. */
-export function stampHeight(lines: StampLine[]): number {
-  const h = Math.max(stampBlockHeight(lines), stampQrSize(lines)) + STAMP_PAD * 2
+export function stampHeight(lines: StampLine[], qr = true): number {
+  const h = Math.max(stampBlockHeight(lines), stampQrSize(lines, qr)) + STAMP_PAD * 2
   return Math.min(STAMP_HEIGHT, Math.ceil(h))
 }
 
@@ -247,17 +257,20 @@ export async function drawSignatureAppearance(
   )
   const blockH = stampBlockHeight(lines)
 
-  // QR del MISMO alto que el texto, centrado verticalmente.
-  const qrSize = Math.min(stampQrSize(lines), pos.height - pad * 2)
+  // QR del MISMO alto que el texto, centrado verticalmente (si el sello lo incluye).
+  const withQr = appearance.includeQr !== false
+  const qrSize = Math.min(stampQrSize(lines, withQr), pos.height - pad * 2)
   let textX = pos.x + pad
-  try {
-    const dataUrl = await generateQrDataUrl()
-    const qr = await pdfDoc.embedPng(base64ToBytes(dataUrl.split(',')[1] ?? ''))
-    const qrY = pos.y + (pos.height - qrSize) / 2
-    page.drawImage(qr, { x: pos.x + pad, y: qrY, width: qrSize, height: qrSize })
-    textX = pos.x + pad + qrSize + STAMP_QR_GAP
-  } catch {
-    // Si el QR falla, seguimos solo con texto.
+  if (withQr) {
+    try {
+      const dataUrl = await generateQrDataUrl()
+      const qr = await pdfDoc.embedPng(base64ToBytes(dataUrl.split(',')[1] ?? ''))
+      const qrY = pos.y + (pos.height - qrSize) / 2
+      page.drawImage(qr, { x: pos.x + pad, y: qrY, width: qrSize, height: qrSize })
+      textX = pos.x + pad + qrSize + STAMP_QR_GAP
+    } catch {
+      // Si el QR falla, seguimos solo con texto.
+    }
   }
 
   const textWidth = pos.x + pos.width - pad - textX

@@ -37,8 +37,9 @@ export function useStampDims(appearance?: SignatureAppearance): {
 } {
   const measure = useHelveticaMeasure()
   if (!appearance || !measure) return { width: STAMP_WIDTH, height: STAMP_HEIGHT }
+  const withQr = appearance.includeQr !== false
   const lines = buildStampLines(appearance, new Date(), measure)
-  return { width: stampWidth(lines, measure), height: stampHeight(lines) }
+  return { width: stampWidth(lines, measure, withQr), height: stampHeight(lines, withQr) }
 }
 
 /**
@@ -60,10 +61,11 @@ export function StampPreview({
 
   const measure = useHelveticaMeasure()
 
+  const withQr = appearance.includeQr !== false
   const lines = buildStampLines(appearance, new Date(), measure ?? undefined)
-  const qrSize = stampQrSize(lines)
-  const width = stampWidth(lines, measure ?? undefined)
-  const height = stampHeight(lines)
+  const qrSize = stampQrSize(lines, withQr)
+  const width = stampWidth(lines, measure ?? undefined, withQr)
+  const height = stampHeight(lines, withQr)
 
   // Se renderiza internamente a 4× y se reduce con transform: los navegadores
   // móviles imponen tamaños mínimos / escalado de accesibilidad a fuentes muy
@@ -84,7 +86,7 @@ export function StampPreview({
           transformOrigin: 'top left',
         }}
       >
-        {qrDataUrl && (
+        {withQr && qrDataUrl && (
           <img
             src={qrDataUrl}
             alt=""

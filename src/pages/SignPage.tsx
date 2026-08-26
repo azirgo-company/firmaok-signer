@@ -12,6 +12,7 @@ import {
   BriefcaseBusiness,
   ZoomIn,
   Share2,
+  QrCode,
 } from 'lucide-react'
 import { CalendarX2 } from 'lucide-react'
 import { Alert, Badge, Button, Card, Input, Modal, Spinner } from '../components/ui'
@@ -55,6 +56,9 @@ export function SignPage({ vault }: { vault: Vault }) {
   const [managing, setManaging] = useState(false)
   // La fecha en el sello es opcional; por defecto no se incluye.
   const [includeDate, setIncludeDate] = useState(false)
+  // El QR del sello es opcional; por defecto se incluye. Solo cambia la apariencia
+  // visible: la firma digital es la misma con o sin QR.
+  const [includeQr, setIncludeQr] = useState(true)
   // El cargo (persona jurídica) también es opcional; por defecto no se incluye.
   const [includePosition, setIncludePosition] = useState(false)
   // Nota libre opcional en el sello (máximo 2 líneas).
@@ -82,6 +86,7 @@ export function SignPage({ vault }: { vault: Vault }) {
         companyRuc: u.subject.companyRucDerived ? undefined : u.subject.companyRuc,
         location: u.subject.address,
         includeDate,
+        includeQr,
         notes,
       }
     : undefined
@@ -338,6 +343,19 @@ export function SignPage({ vault }: { vault: Vault }) {
               <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
                 <CalendarDays className="h-4 w-4 text-slate-400" strokeWidth={2} />
                 Incluir la fecha actual en la firma
+              </span>
+            </label>
+
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
+              <input
+                type="checkbox"
+                checked={includeQr}
+                onChange={(e) => setIncludeQr(e.target.checked)}
+                className="h-4 w-4 shrink-0 accent-brand-600"
+              />
+              <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
+                <QrCode className="h-4 w-4 text-slate-400" strokeWidth={2} />
+                Incluir el código QR en la firma
               </span>
             </label>
 
