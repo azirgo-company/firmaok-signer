@@ -9,6 +9,8 @@ con derecho de supresión).
 
 - **Firma PAdES-B visible** (recuadro estilo FirmaEC, posición arrastrable, multipágina).
 - **Validación offline** de firmas: firmante, CA emisora, fecha, integridad, cobertura.
+- **Multifirma**: firmar un PDF ya firmado **añade** la firma por actualización incremental,
+  sin tocar los bytes anteriores, así que las firmas previas conservan su validez.
 - **Certificado persistente y cifrado**: se importa una vez; se desbloquea con una
   **contraseña maestra** (Argon2id). La contraseña del .p12 no se vuelve a pedir.
 - **Clave de firma no extraíble** (WebCrypto): inmune a exfiltración por XSS una vez importada.
@@ -26,7 +28,7 @@ extracción) · idb (IndexedDB) · Argon2id (contraseña maestra) · react-rnd (
 |---|---|
 | `cert-vault` | Parseo .p12, clave no extraíble, cifrado AES-GCM (contraseña maestra + Argon2id), IndexedDB, unlock/wipe |
 | `crypto-core` | CMS SignedData PAdES (content-type, message-digest, signing-time, signing-cert-v2) |
-| `pdf-signer` | Apariencia visible + placeholder + ByteRange + firma con WebCrypto |
+| `pdf-signer` | Apariencia visible + placeholder + ByteRange + firma con WebCrypto + guardado incremental (multifirma) |
 | `pdf-validator` | Extracción de firmas (Uint8Array, sin Buffer) + verificación con PKI.js |
 | `pdf-viewer` | Render con pdf.js + recuadro arrastrable → coordenadas PDF |
 | `privacy-lopda` | Consentimiento informado, aviso de privacidad |
@@ -69,9 +71,6 @@ contra validadores oficiales antes de producción:
 
 ## Limitaciones conocidas
 
-- **Multifirma**: se puede añadir una segunda firma, pero conservar la validez criptográfica de
-  firmas previas requiere **actualización incremental** del PDF (pendiente de endurecer; hoy
-  `pdf-lib` reescribe el documento al guardar).
 - **Offline estricto**: PAdES-B sin sello de tiempo (TSA) ni revocación (OCSP/CRL).
 - **Validación de cadena**: falta empaquetar las raíces de las AC ecuatorianas en `public/ac-roots`
   para validar la cadena de confianza offline (hoy se reporta firmante e integridad).
