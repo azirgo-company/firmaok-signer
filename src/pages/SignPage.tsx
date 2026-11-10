@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   UploadCloud,
   KeyRound,
@@ -65,6 +65,7 @@ export function SignPage({ vault }: { vault: Vault }) {
   const [notes, setNotes] = useState('')
   // Resalta la zona de carga mientras se arrastra un archivo encima.
   const [dragOver, setDragOver] = useState(false)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
 
   // Selección por defecto: el certificado activo, o el primero.
   useEffect(() => {
@@ -285,7 +286,18 @@ export function SignPage({ vault }: { vault: Vault }) {
 
       {!pdf ? (
         <>
-        <label
+        <div
+          role="button"
+          tabIndex={0}
+          // Abrimos el selector de forma explícita en vez de depender de la
+          // activación implícita <label> → <input hidden>.
+          onClick={() => pdfInputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              pdfInputRef.current?.click()
+            }
+          }}
           onDragOver={(e) => {
             e.preventDefault()
             setDragOver(true)
@@ -317,12 +329,19 @@ export function SignPage({ vault }: { vault: Vault }) {
             <p className="mt-0.5 text-xs text-slate-400">Se firma localmente. Nada se sube.</p>
           </div>
           <input
+            ref={pdfInputRef}
             type="file"
             accept="application/pdf,.pdf"
             className="hidden"
-            onChange={(e) => e.target.files?.[0] && handlePickPdf(e.target.files[0])}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              // Limpiar el valor permite volver a elegir el mismo archivo.
+              e.target.value = ''
+              if (f) handlePickPdf(f)
+            }}
           />
-        </label>
+        </div>
         {error && <Alert kind="error">{error}</Alert>}
         </>
       ) : (
