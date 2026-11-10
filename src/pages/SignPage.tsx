@@ -63,6 +63,8 @@ export function SignPage({ vault }: { vault: Vault }) {
   const [includePosition, setIncludePosition] = useState(false)
   // Nota libre opcional en el sello (máximo 2 líneas).
   const [notes, setNotes] = useState('')
+  // Resalta la zona de carga mientras se arrastra un archivo encima.
+  const [dragOver, setDragOver] = useState(false)
 
   // Selección por defecto: el certificado activo, o el primero.
   useEffect(() => {
@@ -282,7 +284,31 @@ export function SignPage({ vault }: { vault: Vault }) {
       </header>
 
       {!pdf ? (
-        <label className="flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-6 py-12 text-center transition-colors hover:border-brand-500/60 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/50">
+        <>
+        <label
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragOver(false)
+            const f = e.dataTransfer.files?.[0]
+            if (!f) return
+            // El filtro `accept` del input no aplica al arrastrar.
+            if (f.type !== 'application/pdf' && !f.name.toLowerCase().endsWith('.pdf')) {
+              setError('El archivo debe ser un PDF.')
+              return
+            }
+            handlePickPdf(f)
+          }}
+          className={`flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed px-6 py-12 text-center transition-colors ${
+            dragOver
+              ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10'
+              : 'border-slate-300 bg-white hover:border-brand-500/60 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/50'
+          }`}
+        >
           <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-500/10 text-brand-600">
             <UploadCloud className="h-6 w-6" strokeWidth={2} />
           </span>
@@ -297,6 +323,8 @@ export function SignPage({ vault }: { vault: Vault }) {
             onChange={(e) => e.target.files?.[0] && handlePickPdf(e.target.files[0])}
           />
         </label>
+        {error && <Alert kind="error">{error}</Alert>}
+        </>
       ) : (
         <div className="grid gap-6 md:grid-cols-[1fr_300px]">
           <Card padded={false} className="min-w-0 overflow-hidden p-3">
